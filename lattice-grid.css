@@ -100,9 +100,10 @@
 .lg-clear {
   position: absolute; right: 5px; top: 50%; transform: translateY(-50%); display: none;
   width: 16px; height: 16px; padding: 0; border: 0; border-radius: 50%; cursor: pointer;
-  background: var(--lg-muted); color: var(--lg-bg); font: 700 12px/16px system-ui, sans-serif; opacity: 0.65;
+  background: var(--lg-muted); color: var(--lg-bg); opacity: 0.65; line-height: 0;
   align-items: center; justify-content: center;
 }
+.lg-clear svg { display: block; }
 .lg-clearable-date > .lg-clear { right: 28px; }
 .lg-clearable.lg-has-value > .lg-clear { display: flex; }
 .lg-clear:hover, .lg-clear:focus-visible { opacity: 1; }

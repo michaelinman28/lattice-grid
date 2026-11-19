@@ -1,5 +1,5 @@
 /*!
- * Lattice Grid v1.4.0
+ * Lattice Grid v1.4.1
  * A dependency-free JavaScript data grid written from scratch.
  * MIT License.
  *
@@ -98,7 +98,9 @@
   function clearable(input, onClear) {
     const wrap = el('div', 'lg-clearable' + (input.type === 'date' ? ' lg-clearable-date' : ''));
     if (input.type === 'search') input.type = 'text'; // avoid a second, browser-drawn ×
-    const x = el('button', 'lg-clear', '×');
+    const x = el('button', 'lg-clear');
+    // drawn rather than typed, so the cross sits exactly in the centre of the circle in every font
+    x.innerHTML = '<svg viewBox="0 0 10 10" width="8" height="8" aria-hidden="true" focusable="false"><path d="M2 2L8 8M8 2L2 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
     x.type = 'button';
     x.tabIndex = -1;
     x.title = 'Clear';
@@ -1178,7 +1180,7 @@
       const active = document.activeElement;
       let restore = null;
       if (active && active.dataset && active.dataset.ff && H.contains(active)) {
-        restore = { id: active.dataset.ff, s: null, e: null };
+        restore = { id: active.dataset.ff, s: null, e: null, value: active.value };
         try { restore.s = active.selectionStart; restore.e = active.selectionEnd; } catch (err) { /* date inputs */ }
       }
       H.innerHTML = '';
@@ -1220,6 +1222,11 @@
       if (restore) {
         const inp = H.querySelector('[data-ff="' + CSS.escape(restore.id) + '"]');
         if (inp) {
+          if (inp.value !== restore.value) {
+            // keep text typed but not yet applied, and re-queue it so it still takes effect
+            inp.value = restore.value;
+            inp.dispatchEvent(new Event('input'));
+          }
           inp.focus();
           try { if (restore.s != null) inp.setSelectionRange(restore.s, restore.e); } catch (err) { /* ignore */ }
         }
@@ -3250,6 +3257,6 @@
   LatticeGrid.aggregates = AGGS;
   LatticeGrid.sparkline = sparklineSvg;
   LatticeGrid.chartSvg = chartSvg;
-  LatticeGrid.version = '1.4.0';
+  LatticeGrid.version = '1.4.1';
   global.LatticeGrid = LatticeGrid;
 })(typeof window !== 'undefined' ? window : this);

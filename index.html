@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lattice Grid Demo</title>
-  <link rel="stylesheet" href="lattice-grid.css?v=1.4.0">
+  <link rel="stylesheet" href="lattice-grid.css?v=1.4.1">
   <style>
     :root {
       --page-bg: #eef1f5; --page-fg: #1f2430; --page-muted: #5b6474; --card-bg: #ffffff; --card-border: #d9dee5; --accent: #2563eb;
@@ -203,13 +203,13 @@
     </section>
   </main>
 
-  <script src="lattice-grid.js?v=1.4.0"></script>
+  <script src="lattice-grid.js?v=1.4.1"></script>
   <script>
   (function () {
     'use strict';
     // The demo needs the matching library version. A cached older lattice-grid.js would otherwise
     // break the page, so say so plainly instead of failing silently.
-    const NEEDED = '1.4.0';
+    const NEEDED = '1.4.1';
     if (typeof LatticeGrid === 'undefined' || LatticeGrid.version !== NEEDED) {
       const msg = document.createElement('div');
       msg.setAttribute('role', 'alert');

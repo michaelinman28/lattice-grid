@@ -1,7 +1,7 @@
 # Lattice Grid
 
 A dependency-free JavaScript data grid written from scratch: one script, one stylesheet, no build step.
-Open `index.html` (served over HTTP, e.g. `python3 -m http.server`) for the live demo.
+**Live demo:** https://michaelinman28.github.io/lattice-grid/ (or serve this folder locally, e.g. `python3 -m http.server`, and open `index.html`).
 
 ```html
 <link rel="stylesheet" href="lattice-grid.css">
@@ -89,3 +89,7 @@ Ctrl+Z / Ctrl+Y · Ctrl+A · Ctrl+F.
 
 Server-side / infinite row models, spreadsheet formulas, column virtualisation, row dragging and
 right-to-left layout.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

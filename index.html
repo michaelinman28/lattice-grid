@@ -52,21 +52,79 @@
     .row-cancelled { opacity: 0.6; }
     .avatar { display: inline-flex; width: 22px; height: 22px; border-radius: 50%; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; margin-right: 6px; flex: none; }
     .who { display: inline-flex; align-items: center; min-width: 0; }
+    header.page { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+    header.page button { font: inherit; height: 32px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--card-border); background: var(--card-bg); color: var(--page-fg); cursor: pointer; }
+    .simple-host { height: min(60vh, 560px); min-height: 360px; }
+    .picker { position: relative; }
+    .picker-menu {
+      position: absolute; top: calc(100% + 4px); left: 0; z-index: 50; min-width: 220px; padding: 6px;
+      background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.18);
+    }
+    .picker-menu[hidden] { display: none; }
+    .picker-menu label { display: flex; gap: 8px; align-items: center; padding: 5px 8px; border-radius: 5px; cursor: pointer; color: var(--page-fg); }
+    .picker-menu label:hover { background: var(--page-bg); }
+    .picker-menu .row { display: flex; gap: 6px; padding: 6px 4px 2px; border-top: 1px solid var(--card-border); margin-top: 4px; }
+    .picker-menu .row button { flex: 1; height: 28px; font-size: 12px; }
+    .hint { color: var(--page-muted); font-size: 13px; }
+    pre.code { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 12px 14px; overflow: auto; font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; margin: 0; }
   </style>
 </head>
 <body>
   <header class="page">
-    <h1>Lattice Grid</h1>
-    <p>A dependency-free JavaScript data grid built from scratch, with grouping, pivoting, tree data, master/detail, range selection, charts, Excel export and more.</p>
+    <div>
+      <h1 style="margin:0;font-size:22px">Lattice Grid</h1>
+      <p>A dependency-free JavaScript data grid built from scratch, with grouping, pivoting, tree data, master/detail, range selection, charts, Excel export and more.</p>
+    </div>
+    <button id="theme" type="button">◐ Theme</button>
   </header>
   <main>
     <nav class="tabs" role="tablist">
-      <button class="on" data-tab="sales" role="tab">Sales analytics</button>
+      <button class="on" data-tab="simple" role="tab">Simple</button>
+      <button data-tab="sales" role="tab">Sales analytics</button>
       <button data-tab="tree" role="tab">Tree data</button>
       <button data-tab="detail" role="tab">Master / detail</button>
     </nav>
 
-    <section class="panel on" id="panel-sales">
+    <section class="panel on" id="panel-simple">
+      <div class="controls">
+        <div class="picker">
+          <button id="colPickerBtn" type="button" aria-haspopup="true" aria-expanded="false">☰ Columns ▾</button>
+          <div class="picker-menu" id="colPicker" hidden></div>
+        </div>
+        <button id="simpleClear" type="button">Clear sort &amp; filters</button>
+        <button id="simpleReset" type="button">Reset</button>
+        <span class="hint" id="simpleHint"></span>
+      </div>
+      <div class="simple-host" id="simpleGrid"></div>
+      <div class="info">
+        <div class="card">
+          <h3>What this example turns on</h3>
+          <ul>
+            <li><b>Move columns:</b> drag a column header left or right</li>
+            <li><b>Sort:</b> click a header. Shift+click to sort by more than one column</li>
+            <li><b>Filter:</b> type in the boxes under the headers. Number columns accept <kbd>&gt;90000</kbd> or <kbd>2..4</kbd>. "All" opens a checkbox list</li>
+            <li><b>Reorder rows:</b> drag the <b>⠿</b> handle, or press <kbd>Alt+↑</kbd>/<kbd>Alt+↓</kbd>. This pauses while a sort or filter is active</li>
+            <li><b>Choose columns:</b> use the <b>Columns</b> button to show or hide columns</li>
+          </ul>
+        </div>
+        <div class="card" style="grid-column: span 2; min-width: 0">
+          <h3>The configuration</h3>
+<pre class="code">new LatticeGrid('#simpleGrid', {
+  columns, rows, rowId: (r) =&gt; r.id,
+  rowReorder: true,          // drag-and-drop rows
+  columnMove: true,          // drag headers to reorder columns (default)
+  floatingFilters: true,     // filter boxes under each header (default)
+  // everything else switched off:
+  toolbar: false, groupPanel: false, sideBar: false, statusBar: true,
+  columnMenu: false, contextMenu: false, rangeSelection: false,
+  fillHandle: false, readOnly: true,
+});
+// column picker: grid.setColumnVisible(id, true | false)</pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-sales">
       <div class="controls">
         <label>Rows
           <select id="rowCount">
@@ -85,8 +143,7 @@
         <label><input type="checkbox" id="paging"> Pagination</label>
         <button id="save">Save state</button>
         <button id="restore">Restore state</button>
-        <div class="sep"></div>
-        <button id="theme">◐ Theme</button>
+
       </div>
       <div class="grid-host" id="salesGrid"></div>
       <div class="info">
@@ -427,6 +484,87 @@
       });
     }
 
+    // ---------- Simple grid ----------
+    function makeTeam(n) {
+      const r = rng(2024);
+      const first = ['Ada', 'Ben', 'Cleo', 'Dev', 'Elif', 'Femi', 'Gita', 'Hugo', 'Iris', 'Jon', 'Kira', 'Leo', 'Mina', 'Nils', 'Owen', 'Pri', 'Rosa', 'Sven', 'Tara', 'Umar', 'Vera', 'Wen', 'Yara', 'Zane'];
+      const last = ['Abbott', 'Baker', 'Chen', 'Diaz', 'Evans', 'Fischer', 'Garcia', 'Hughes', 'Ivanova', 'Jensen', 'Kim', 'Lopez', 'Moreau', 'Nakamura', 'Okoro', 'Patel', 'Quinn', 'Rossi', 'Singh', 'Tanaka'];
+      const depts = { Engineering: ['Engineer', 'Senior Engineer', 'Tech Lead'], Design: ['Designer', 'Senior Designer'], Sales: ['Account Exec', 'Sales Manager'], Support: ['Support Agent', 'Support Lead'], Finance: ['Analyst', 'Controller'] };
+      const cities = ['London', 'New York', 'Berlin', 'Tokyo', 'Toronto', 'Sydney', 'Remote'];
+      return Array.from({ length: n }, (_, i) => {
+        const dept = pick(r, Object.keys(depts));
+        return {
+          id: i + 1, name: pick(r, first) + ' ' + pick(r, last), department: dept, role: pick(r, depts[dept]), location: pick(r, cities),
+          started: new Date(Date.UTC(2014 + Math.floor(r() * 11), Math.floor(r() * 12), 1 + Math.floor(r() * 27))).toISOString().slice(0, 10),
+          salary: Math.round((55000 + r() * 110000) / 500) * 500, rating: 1 + Math.floor(r() * 5),
+        };
+      });
+    }
+    const simpleColumns = [
+      { field: 'name', header: 'Name', width: 180 },
+      { field: 'department', header: 'Department', width: 150, filter: 'set' },
+      { field: 'role', header: 'Role', width: 170 },
+      { field: 'location', header: 'Location', width: 140, filter: 'set' },
+      { field: 'started', header: 'Start date', type: 'date', width: 140 },
+      { field: 'salary', header: 'Salary', type: 'number', width: 130, format: dollars },
+      { field: 'rating', header: 'Rating', type: 'number', width: 110, render: (p) => '<span class="stars">' + '★'.repeat(p.value || 0) + '<i>' + '★'.repeat(5 - (p.value || 0)) + '</i></span>' },
+      { field: 'id', header: 'Employee #', type: 'number', width: 120, hidden: true },
+    ];
+    let simple = null;
+    function createSimple() {
+      if (simple) simple.destroy();
+      simple = new LatticeGrid('#simpleGrid', {
+        columns: simpleColumns, rows: makeTeam(200), rowId: (r) => r.id, theme,
+        rowReorder: true, columnMove: true, floatingFilters: true,
+        toolbar: false, groupPanel: false, sideBar: false, statusBar: true,
+        columnMenu: false, contextMenu: false, rangeSelection: false, fillHandle: false, readOnly: true,
+      });
+      const hint = document.getElementById('simpleHint');
+      const update = () => { hint.textContent = simple.canReorderRows() ? 'Row dragging is on.' : 'Row dragging is paused while a sort or filter is active.'; };
+      ['sortChanged', 'filterChanged'].forEach((ev) => simple.on(ev, update));
+      simple.on('rowsReordered', (e) => { hint.textContent = 'Moved ' + e.ids.length + ' row(s) to position ' + (e.toIndex + 1) + '. Ctrl+Z to undo.'; });
+      update();
+      window.simpleGrid = simple;
+    }
+    createSimple();
+
+    const pickerBtn = document.getElementById('colPickerBtn'), picker = document.getElementById('colPicker');
+    function buildPicker() {
+      picker.innerHTML = '';
+      const cols = simple.getState().columns; // current order and visibility
+      cols.forEach((c) => {
+        const def = simpleColumns.find((d) => d.field === c.id);
+        const lab = document.createElement('label');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox'; cb.checked = !c.hidden;
+        cb.addEventListener('change', () => {
+          const shown = simple.getState().columns.filter((x) => !x.hidden).length;
+          if (!cb.checked && shown <= 1) { cb.checked = true; return; } // keep at least one column
+          simple.setColumnVisible(c.id, cb.checked);
+        });
+        lab.append(cb, document.createTextNode(def ? def.header : c.id));
+        picker.appendChild(lab);
+      });
+      const row = document.createElement('div');
+      row.className = 'row';
+      const all = document.createElement('button'); all.type = 'button'; all.textContent = 'Show all';
+      all.addEventListener('click', () => { simple.getState().columns.forEach((c) => simple.setColumnVisible(c.id, true)); buildPicker(); });
+      const done = document.createElement('button'); done.type = 'button'; done.textContent = 'Done';
+      done.addEventListener('click', () => togglePicker(false));
+      row.append(all, done);
+      picker.appendChild(row);
+    }
+    function togglePicker(open) {
+      if (open) buildPicker();
+      picker.hidden = !open;
+      pickerBtn.setAttribute('aria-expanded', String(open));
+    }
+    pickerBtn.addEventListener('click', () => togglePicker(picker.hidden));
+    document.addEventListener('mousedown', (e) => { if (!picker.hidden && !e.target.closest('.picker')) togglePicker(false); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !picker.hidden) togglePicker(false); });
+    document.getElementById('simpleClear').addEventListener('click', () => { simple.setSort([]); simple.clearFilters(); });
+    document.getElementById('simpleReset').addEventListener('click', () => { togglePicker(false); createSimple(); });
+
     // ---------- tabs & theme ----------
     document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
       document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x === b));
@@ -436,7 +574,7 @@
     }));
     function applyTheme() {
       document.documentElement.dataset.theme = theme;
-      [sales, tree, detail].forEach((g) => g && g.setTheme(theme));
+      [simple, sales, tree, detail].forEach((g) => g && g.setTheme(theme));
     }
     document.getElementById('theme').addEventListener('click', () => { theme = theme === 'dark' ? 'light' : 'dark'; applyTheme(); });
     applyTheme();

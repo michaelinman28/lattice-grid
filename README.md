@@ -494,9 +494,14 @@ python3 -m http.server 8000      # any static web server works
 # open http://localhost:8000
 ```
 
-The demo has three tabs: **Sales analytics** (up to 100,000 rows), **Tree data** (an org chart) and
-**Master / detail** (customers with nested order grids). Each sales grid is also exposed as
-`window.salesGrid`, so you can try the API from the browser console.
+The demo has four tabs:
+
+- **Simple**: a pared-down grid with only movable columns, column filters, sorting, row drag-and-drop and a
+  show/hide columns picker. Its configuration is shown on the page.
+- **Sales analytics**: everything turned on, up to 100,000 rows.
+- **Tree data**: an org chart.
+- **Master / detail**: customers with nested order grids. The grids are also exposed as
+`window.simpleGrid` and `window.salesGrid`, so you can try the API from the browser console.
 
 ---
 

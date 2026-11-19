@@ -1,5 +1,5 @@
 /*!
- * Lattice Grid v1.0
+ * Lattice Grid v1.3.0
  * A dependency-free JavaScript data grid written from scratch.
  * MIT License.
  *
@@ -3206,6 +3206,6 @@
   LatticeGrid.aggregates = AGGS;
   LatticeGrid.sparkline = sparklineSvg;
   LatticeGrid.chartSvg = chartSvg;
-  LatticeGrid.version = '1.0.0';
+  LatticeGrid.version = '1.3.0';
   global.LatticeGrid = LatticeGrid;
 })(typeof window !== 'undefined' ? window : this);

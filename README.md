@@ -40,6 +40,7 @@ A dependency-free JavaScript data grid written from scratch: one script, one sty
 | Find | Highlight matches across the grid, step through them with Enter / Shift+Enter |
 | Editing | Text, number, date, select, checkbox and large-text editors; validation; undo/redo; change events |
 | Range selection | Drag or Shift+click/arrows; status bar shows count/sum/avg/min/max; copy/paste TSV (Excel-compatible); fill handle with linear series; Delete clears |
+| Row reordering | Drag the ⠿ handle (mouse or touch) or press Alt+↑/↓; selected rows move together; undoable; paused while a sort, filter, grouping, pivot, tree data or pagination is active (the handles are shown greyed out) |
 | Row selection | Checkboxes, select-all (filtered), group checkboxes, Shift range select, single or multiple |
 | Grouping | Multi-level row grouping, drag-and-drop group bar, aggregation (`sum avg min max count first last` or a custom function), expand/collapse |
 | Pivoting | Pivot mode with generated columns per pivot key and value, plus totals |
@@ -66,30 +67,39 @@ A dependency-free JavaScript data grid written from scratch: one script, one sty
 `groupDefaultExpanded` (`-1` = all), `hideGroupedColumns`, `groupColumnHeader`, `pivotMode`, `pivotBy`,
 `treeData`, `getTreePath`, `masterDetail`, `detailRenderer({data,container,grid})`, `detailHeight`, `totalsRow`,
 `pagination`, `pageSize`, `sideBar` (`true` | `'open'`), `toolbar`, `groupPanel`, `statusBar`, `floatingFilters`,
-`theme`, `flashChanges`, `rowClass(row)`, `externalFilter(row)`, `contextMenuItems(items, ctx)`, `exportFileName`.
+`rowReorder`, `theme`, `flashChanges`, `rowClass(row)`, `externalFilter(row)`, `contextMenuItems(items, ctx)`, `exportFileName`.
 
 ## API
 
 `setRows`, `addRows`, `removeRows`, `updateRows`, `getRows`, `refresh`, `setSort`, `setFilter`, `setFilterModel`,
 `getFilterModel`, `clearFilters`, `setQuickFilter`, `setFind`, `findNext`, `groupBy`, `pivotBy`, `setPivotMode`,
 `setAggregate`, `expandAll`, `collapseAll`, `toggleExpand`, `toggleDetail`, `selectAll`, `deselectAll`,
-`getSelectedRows`, `moveColumn`, `setColumnVisible`, `pinColumn`, `autoSizeColumn`, `autoSizeAll`, `resetColumns`,
+`getSelectedRows`, `moveRows(ids, toIndex)`, `canReorderRows`, `moveColumn`, `setColumnVisible`, `pinColumn`, `autoSizeColumn`, `autoSizeAll`, `resetColumns`,
 `startEdit`, `stopEdit`, `undo`, `redo`, `copyRange`, `pasteFromClipboard`, `chartRange`, `exportCsv`, `getCsv`,
 `exportExcel`, `getExcelBlob`, `getState`, `setState`, `setTheme`, `toggleSideBar`, `setPage`, `ensureVisible`,
 `destroy`, plus `on(event, fn)` / `off` for `cellValueChanged`, `selectionChanged`, `sortChanged`,
-`filterChanged`, `rangeChanged`, `columnMoved` and `columnResized`.
+`filterChanged`, `rangeChanged`, `rowsReordered`, `columnMoved` and `columnResized`.
 
 ## Keyboard
 
 Arrows move · Shift+arrows extend the range · Ctrl+arrows jump to the edge · PageUp/PageDown · Home/End ·
-Tab · Enter/F2 edit · Esc cancel · Space select row / toggle group · Delete clear · Ctrl+C / Ctrl+V ·
+Tab · Alt+↑/↓ move rows · Enter/F2 edit · Esc cancel · Space select row / toggle group · Delete clear · Ctrl+C / Ctrl+V ·
 Ctrl+Z / Ctrl+Y · Ctrl+A · Ctrl+F.
 
 ## Not included (yet)
 
-Server-side / infinite row models, spreadsheet formulas, column virtualisation, row dragging and
-right-to-left layout.
+Server-side / infinite row models, spreadsheet formulas, column virtualisation, dragging rows between
+groups or grids, and right-to-left layout.
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## Row reordering
+
+Set `rowReorder: true`. A narrow handle column appears on the left. Reordering changes the order of the
+underlying `rows` array, fires `rowsReordered` with `{ ids, toIndex, rows }`, and can be undone with Ctrl+Z.
+
+It only runs while the grid shows the raw row order. If a sort, filter (column, quick or external), row
+grouping, pivot mode, tree data or pagination is active, the handles turn grey and their tooltip says what
+to clear. This matches how AG Grid's managed row dragging behaves under sorting and filtering.

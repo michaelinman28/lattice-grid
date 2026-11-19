@@ -76,8 +76,8 @@
           </select>
         </label>
         <div class="sep"></div>
-        <button data-preset="flat">Flat</button>
-        <button data-preset="region" class="on">Group: Region</button>
+        <button data-preset="flat" class="on">Flat</button>
+        <button data-preset="region">Group: Region</button>
         <button data-preset="deep">Group: Region › Country</button>
         <button data-preset="pivot">Pivot: Region × Category</button>
         <div class="sep"></div>
@@ -93,6 +93,7 @@
         <div class="card">
           <h3>Try this</h3>
           <ul>
+            <li>Drag the <b>⠿</b> handle to reorder rows. Select several rows first to move them together. Reordering pauses while a sort, filter, grouping or pivot is active</li>
             <li>Drag a column header into the group bar, or into the side panel's zones</li>
             <li>Drag across cells to select a range. The status bar shows its sum, avg, min and max</li>
             <li>Right-click a range and choose <b>Chart range</b></li>
@@ -109,6 +110,7 @@
             <li><kbd>Ctrl+C</kbd> / <kbd>Ctrl+V</kbd> copy / paste (works with Excel)</li>
             <li><kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd> undo / redo · <kbd>Delete</kbd> clear</li>
             <li><kbd>Space</kbd> select row · <kbd>Ctrl+A</kbd> select all cells · <kbd>Ctrl+F</kbd> find</li>
+            <li><kbd>Alt+↑</kbd> / <kbd>Alt+↓</kbd> move the focused (or selected) rows</li>
             <li><kbd>Shift</kbd>+click a header for multi-column sort</li>
           </ul>
         </div>
@@ -250,7 +252,7 @@
         rows: salesRows,
         rowId: (d) => d.id,
         selection: 'multiple',
-        groupBy: ['region'],
+        rowReorder: true,
         sideBar: window.innerWidth > 1100 ? 'open' : true,
         totalsRow: true,
         pagination: document.getElementById('paging').checked,
@@ -265,6 +267,7 @@
       sales.on('sortChanged', (s) => log('sortChanged  ' + (s.map((x) => x.id + ' ' + x.dir).join(', ') || '(none)')));
       sales.on('filterChanged', (m) => log('filterChanged  ' + (Object.keys(m).join(', ') || '(none)')));
       sales.on('columnMoved', (e) => log('columnMoved  ' + e.column));
+      sales.on('rowsReordered', (e) => log('rowsReordered  ' + e.ids.length + ' row(s) → position ' + (e.toIndex + 1)));
       window.salesGrid = sales; // handy for poking at the API from the console
     }
     createSales();
@@ -388,6 +391,7 @@
         rows: makeCustomers(),
         rowId: (d) => d.id,
         masterDetail: true,
+        rowReorder: true,
         detailHeight: 300,
         groupPanel: false,
         theme,

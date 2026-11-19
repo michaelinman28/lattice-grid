@@ -394,6 +394,7 @@
     emptyMessage: 'No rows to show',
     contextMenuItems: null,
     exportFileName: 'export',
+    rowReorder: false,
   };
 
   /* =====================================================================
@@ -439,6 +440,7 @@
       this.totalHeight = 0;
       this.headerHeightTotal = 0;
 
+      this._dragCol = { special: 'drag', id: '__drag', header: '', width: 34, minWidth: 34, flex: 0, pinned: 'left', resizable: false, sortable: false, filterType: null, def: {} };
       this._selCol = { special: 'sel', id: '__sel', header: '', width: 44, minWidth: 44, flex: 0, pinned: 'left', resizable: false, sortable: false, filterType: null, def: {} };
       this._groupCol = { special: 'group', id: '__group', header: this.o.treeData ? this.o.treeColumnHeader : this.o.groupColumnHeader, width: this.o.groupColumnWidth, minWidth: 100, flex: 0, pinned: 'left', resizable: true, sortable: true, filterType: null, def: {} };
 
@@ -488,12 +490,14 @@
 
     _colById(id) {
       if (id === '__sel') return this._selCol;
+      if (id === '__drag') return this._dragCol;
       if (id === '__group') return this._groupCol;
       return this.colMap.get(id) || this._genMap.get(id) || null;
     }
 
     _computeVisibleCols() {
       const list = [];
+      if (this.o.rowReorder) list.push(this._dragCol);
       if (this.o.selection) list.push(this._selCol);
       const grouping = this.groupCols.length > 0 || this.o.treeData || this.pivotMode;
       if (grouping) list.push(this._groupCol);
@@ -538,7 +542,7 @@
       this.visible = vis;
       this.canvas.style.width = x + 'px';
       const gi = vis.indexOf(this._groupCol);
-      this._mdCol = gi >= 0 ? gi : vis.findIndex((c) => c.special !== 'sel');
+      this._mdCol = gi >= 0 ? gi : vis.findIndex((c) => !this._isUtil(c));
     }
 
     /* ---------------- values ---------------- */
@@ -547,6 +551,7 @@
       if (col.def && col.def.getValue) return col.def.getValue(data);
       return getPath(data, col.field);
     }
+    _isUtil(col) { return col.special === 'sel' || col.special === 'drag'; }
     _isGroupLike(n) { return !!(n.group || (n.tree && n.children.length)); }
     _cellValue(col, n) {
       if (col.generated) return n.agg ? n.agg[col.aggKey] : null;
@@ -574,7 +579,7 @@
     }
     _cellText(col, e) {
       const n = e.node;
-      if (col.special === 'sel') return '';
+      if (this._isUtil(col)) return '';
       if (col.special === 'group') {
         if (e.kind === 'total') return 'Total';
         return (n.group || n.tree) && n.keyText != null ? n.keyText : '';
@@ -1184,6 +1189,14 @@
       d.dataset.c = idx;
       d.dataset.col = c.id;
       d.setAttribute('role', 'columnheader');
+      if (c.special === 'drag') {
+        d.classList.add('lg-sel');
+        const why = this._reorderBlockReason();
+        const ic = el('span', 'lg-drag-hicon' + (why ? ' lg-disabled' : ''), '⇅');
+        ic.title = why ? 'Row reordering is paused: ' + why : 'Drag the ⠿ handles to reorder rows';
+        d.appendChild(ic);
+        return d;
+      }
       if (c.special === 'sel') {
         d.classList.add('lg-sel');
         if (this.o.selection === 'multiple') {
@@ -1280,6 +1293,7 @@
       const body = this.bodyEl;
       const vp = this.viewport;
       const len = this.display.length;
+      this._dragBlock = this._reorderBlockReason();
       body.style.height = Math.max(this.totalHeight, 1) + 'px';
       this.overlayEl.style.display = len ? 'none' : 'flex';
       if (!len) { body.replaceChildren(); this._rendered = null; return; }
@@ -1317,6 +1331,7 @@
       if (r % 2) row.classList.add('lg-alt');
       if (e.kind === 'group') row.classList.add('lg-group-row');
       if (n.data && this.selected.has(n.id)) row.classList.add('lg-selected');
+      if (this._draggingIds && this._draggingIds.has(n.id)) row.classList.add('lg-row-dragging');
       if (o.rowClass && n.data && e.kind === 'leaf') {
         const rc = o.rowClass(n.data);
         if (rc) rc.split(/\s+/).filter(Boolean).forEach((c) => row.classList.add(c));
@@ -1367,6 +1382,16 @@
       const fm = this.find.term ? this.find.matches[this.find.index] : null;
       if (!total && fm && fm.r === r && fm.c === ci) d.classList.add('lg-find-current');
 
+      if (col.special === 'drag') {
+        d.classList.add('lg-center');
+        if (total || e.kind !== 'leaf') return d;
+        const why = this._dragBlock;
+        const hd = el('span', 'lg-drag-handle' + (why ? ' lg-disabled' : ''), '⠿');
+        hd.dataset.rowDrag = '1';
+        hd.title = why ? 'Row reordering is paused: ' + why : 'Drag to reorder (or Alt+↑ / Alt+↓)';
+        d.appendChild(hd);
+        return d;
+      }
       if (col.special === 'sel') {
         d.classList.add('lg-center');
         if (total || !o.selection) return d;
@@ -1506,7 +1531,7 @@
         if (!e || e.kind === 'detail') continue;
         for (let c = rg.c1; c <= rg.c2; c++) {
           const col = this.visible[c];
-          if (!col || col.special === 'sel') continue;
+          if (!col || this._isUtil(col)) continue;
           const v = col.special === 'group' ? e.node.keyText : this._cellValue(col, e.node);
           if (v == null || v === '') continue;
           count++;
@@ -1670,6 +1695,17 @@
         if (e.target.dataset.resize) { this.autoSizeColumn(e.target.dataset.resize); }
       });
       this.bodyEl.addEventListener('mousedown', (e) => this._onBodyMouseDown(e));
+      this.bodyEl.addEventListener('pointerdown', (e) => {
+        if (!e.target.dataset || !e.target.dataset.rowDrag || e.button !== 0) return;
+        const p = this._cellFromEvent(e);
+        if (!p) return;
+        e.preventDefault();
+        if (this.editing) this.stopEdit(true);
+        this.viewport.focus({ preventScroll: true });
+        const why = this._reorderBlockReason();
+        if (why) this._toast('Row reordering is paused: ' + why);
+        else this._startRowDrag(e, this.display[p.r]);
+      });
       this.bodyEl.addEventListener('click', (e) => {
         if (!e.target.dataset.select) return;
         const p = this._cellFromEvent(e);
@@ -1743,7 +1779,7 @@
       const cell = t.closest('.lg-hcell');
       if (!cell || !cell.dataset.col) return;
       const col = this._colById(cell.dataset.col);
-      if (!col || col.special === 'sel') return;
+      if (!col || this._isUtil(col)) return;
       const sx = ev.clientX, sy = ev.clientY;
       let dragging = false, ghost = null, lastTarget = null, lastZone = null;
       const canDrag = !col.special && !col.generated;
@@ -1830,6 +1866,7 @@
       if (e.button !== 0) return;
       if (t.dataset.toggle) { e.preventDefault(); this.toggleExpand(entry.node); return; }
       if (t.dataset.detail) { e.preventDefault(); this.toggleDetail(entry.node); return; }
+      if (t.dataset.rowDrag) { e.preventDefault(); return; } // handled on pointerdown (mouse + touch)
       if (t.dataset.select) return;
       if (t.classList.contains('lg-fill')) { e.preventDefault(); this._startFill(); return; }
       // Double-click detection is done here because rows re-render on mousedown,
@@ -1930,6 +1967,11 @@
         return;
       }
       if (ctrl && (lk === 'c' || lk === 'v' || lk === 'x')) return;
+      if (e.altKey && (k === 'ArrowUp' || k === 'ArrowDown') && this.o.rowReorder && this.focus) {
+        e.preventDefault();
+        this._keyboardMove(k === 'ArrowUp' ? -1 : 1);
+        return;
+      }
       const R = this.display.length - 1, C = this.visible.length - 1;
       if (R < 0) return;
       const nav = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', 'Tab'];
@@ -2121,12 +2163,14 @@
     undo() {
       const b = this.undoStack.pop();
       if (!b) { this._toast('Nothing to undo'); return; }
+      if (b.type === 'order') { this._setOrder(b.before); this.redoStack.push(b); return; }
       this._applyChanges(b.map((x) => ({ node: x.node, col: x.col, value: x.old })), false);
       this.redoStack.push(b);
     }
     redo() {
       const b = this.redoStack.pop();
       if (!b) { this._toast('Nothing to redo'); return; }
+      if (b.type === 'order') { this._setOrder(b.after); this.undoStack.push(b); return; }
       this._applyChanges(b.map((x) => ({ node: x.node, col: x.col, value: x.value })), false);
       this.undoStack.push(b);
     }
@@ -2203,7 +2247,7 @@
     _rangeToTsv(withHeaders) {
       const rg = this.range || (this.focus && { r1: this.focus.r, r2: this.focus.r, c1: this.focus.c, c2: this.focus.c });
       if (!rg) return '';
-      const cols = this.visible.slice(rg.c1, rg.c2 + 1).filter((c) => c.special !== 'sel');
+      const cols = this.visible.slice(rg.c1, rg.c2 + 1).filter((c) => !this._isUtil(c));
       const lines = [];
       if (withHeaders) lines.push(cols.map((c) => c.header).join('\t'));
       for (let r = rg.r1; r <= rg.r2; r++) {
@@ -2250,7 +2294,7 @@
       const rowsN = single ? rg.r2 - rg.r1 + 1 : lines.length;
       const colsN = single ? rg.c2 - rg.c1 + 1 : Math.max.apply(null, lines.map((l) => l.length));
       let c0 = rg.c1;
-      if (this.visible[c0] && this.visible[c0].special === 'sel') c0++;
+      while (this.visible[c0] && this._isUtil(this.visible[c0])) c0++;
       let i = 0, r = rg.r1, lastR = r;
       while (i < rowsN && r < this.display.length) {
         const e = this.display[r];
@@ -2272,6 +2316,154 @@
       const n = this._applyChanges(changes, true);
       this._setRange({ r: rg.r1, c: c0 }, { r: lastR, c: Math.min(this.visible.length - 1, c0 + colsN - 1) });
       this._toast(n ? 'Pasted ' + n + ' cell(s)' : 'Nothing pasted (cells are read-only)');
+    }
+
+    /* ---------------- row reordering ---------------- */
+    /**
+     * Returns null when rows can be reordered, otherwise a short reason.
+     * Reordering only makes sense when the grid shows the raw row order:
+     * no sort, no filter, no grouping / pivot / tree, and no pagination.
+     */
+    _reorderBlockReason() {
+      if (!this.o.rowReorder) return 'row reordering is not enabled';
+      if (this.sorts.length) return 'clear the sort to reorder rows';
+      if (this.filters.size || this.quickFilter || this.o.externalFilter) return 'clear the filters to reorder rows';
+      if (this.o.treeData) return 'not available for tree data';
+      if (this.pivotMode) return 'turn off pivot mode to reorder rows';
+      if (this.groupCols.length) return 'remove row grouping to reorder rows';
+      if (this.o.pagination) return 'not available with pagination';
+      return null;
+    }
+    canReorderRows() { return !this._reorderBlockReason(); }
+
+    _movingNodes(node) {
+      // dragging a selected row moves every selected row, keeping their order
+      if (this.selected.has(node.id) && this.selected.size > 1) return this.nodes.filter((n) => this.selected.has(n.id));
+      return [node];
+    }
+
+    _startRowDrag(ev, entry) {
+      const moving = this._movingNodes(entry.node);
+      const sx = ev.clientX, sy = ev.clientY;
+      let started = false, ghost = null, line = null, target = null, last = ev, timer = 0;
+      const firstCol = this.visible.find((c) => !this._isUtil(c));
+      const label = moving.length > 1 ? 'Move ' + moving.length + ' rows'
+        : 'Move ' + (firstCol ? this._cellText(firstCol, { node: moving[0], kind: 'leaf' }) || 'row' : 'row');
+      const leafPos = new Map();
+      this.display.forEach((e, i) => { if (e.kind === 'leaf' && !leafPos.has(e.node)) leafPos.set(e.node, i); });
+      const compute = (clientY) => {
+        const br = this.bodyEl.getBoundingClientRect();
+        const y = clamp(clientY - br.top, 0, Math.max(0, this.totalHeight - 1));
+        let r = this._rowAtY(y);
+        let e = this.display[r];
+        let after = y > (this.offsets[r] + this.offsets[r + 1]) / 2;
+        if (e && e.kind === 'detail') { after = true; r--; e = this.display[r]; }
+        if (!e) return;
+        let idx = this.nodes.indexOf(e.node) + (after ? 1 : 0);
+        idx = clamp(idx, 0, this.nodes.length);
+        target = idx;
+        const nextNode = this.nodes[idx];
+        const lineY = nextNode && leafPos.has(nextNode) ? this.offsets[leafPos.get(nextNode)] : this.totalHeight;
+        line.style.top = this.bodyEl.offsetTop + lineY - 1 + 'px';
+      };
+      const scrollTick = () => {
+        const r = this.viewport.getBoundingClientRect();
+        const top = r.top + this.headerHeightTotal, bot = r.bottom - (this.o.totalsRow ? this.o.rowHeight : 0);
+        let dy = 0;
+        if (last.clientY < top + 28) dy = -Math.ceil((top + 28 - last.clientY) / 2);
+        else if (last.clientY > bot - 28) dy = Math.ceil((last.clientY - (bot - 28)) / 2);
+        if (dy) { this.viewport.scrollTop += clamp(dy, -40, 40); compute(last.clientY); }
+      };
+      const move = (e) => {
+        last = e;
+        if (!started) {
+          if (Math.abs(e.clientY - sy) < 4 && Math.abs(e.clientX - sx) < 4) return;
+          started = true;
+          ghost = el('div', 'lg-drag-ghost lg-ok ' + this._themeClass(), label);
+          document.body.appendChild(ghost);
+          line = el('div', 'lg-drop-line');
+          line.style.width = this.totalWidth + 'px';
+          this.canvas.appendChild(line);
+          this._draggingIds = new Set(moving.map((n) => n.id));
+          this.rootEl.classList.add('lg-dragging');
+          this._renderRows();
+          timer = setInterval(scrollTick, 30);
+        }
+        ghost.style.left = e.clientX + 14 + 'px';
+        ghost.style.top = e.clientY + 10 + 'px';
+        compute(e.clientY);
+      };
+      const finish = (commit) => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        window.removeEventListener('keydown', key, true);
+        clearInterval(timer);
+        if (!started) return;
+        ghost.remove();
+        line.remove();
+        this._draggingIds = null;
+        this.rootEl.classList.remove('lg-dragging');
+        if (commit && target != null) this.moveRows(moving.map((n) => n.id), target);
+        else this._renderRows();
+      };
+      const up = () => finish(true);
+      const key = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); } };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+      window.addEventListener('keydown', key, true);
+    }
+
+    _keyboardMove(dir) {
+      const why = this._reorderBlockReason();
+      if (why) { this._toast('Row reordering is paused: ' + why); return; }
+      const e = this.display[this.focus.r];
+      if (!e || e.kind !== 'leaf') return;
+      const moving = this._movingNodes(e.node);
+      const idxs = moving.map((n) => this.nodes.indexOf(n));
+      const to = dir < 0 ? Math.min.apply(null, idxs) - 1 : Math.max.apply(null, idxs) + 2;
+      if (to < 0 || to > this.nodes.length) return;
+      this.moveRows(moving.map((n) => n.id), to);
+    }
+
+    /**
+     * Moves the rows with the given ids so they sit before the row currently at
+     * `toIndex` in the unfiltered row order (use rows.length to move to the end).
+     * Returns true if anything moved. Undoable with undo().
+     */
+    moveRows(ids, toIndex, opts) {
+      const why = this._reorderBlockReason();
+      if (why && !(opts && opts.force)) { this._toast('Row reordering is paused: ' + why); return false; }
+      const set = new Set(ids.map(String));
+      const before = this.nodes.slice();
+      const moving = before.filter((n) => set.has(n.id));
+      if (!moving.length) return false;
+      let adj = 0;
+      for (let i = 0; i < Math.min(toIndex, before.length); i++) if (set.has(before[i].id)) adj++;
+      const rest = before.filter((n) => !set.has(n.id));
+      const at = clamp(toIndex - adj, 0, rest.length);
+      const after = rest.slice(0, at).concat(moving, rest.slice(at));
+      if (after.every((n, i) => n === before[i])) return false;
+      const col = this.focus ? this.focus.c : this.visible.findIndex((c) => !this._isUtil(c));
+      this._setOrder(after);
+      if (!opts || opts.record !== false) {
+        this.undoStack.push({ type: 'order', before, after });
+        if (this.undoStack.length > 200) this.undoStack.shift();
+        this.redoStack.length = 0;
+      }
+      const first = this.display.findIndex((e) => e.node === moving[0]);
+      if (first >= 0) {
+        const lastR = this.display.findIndex((e) => e.node === moving[moving.length - 1]);
+        this._setRange({ r: first, c: Math.max(0, col) }, { r: lastR, c: Math.max(0, col) });
+        this.ensureVisible(first, null);
+      }
+      this.emit('rowsReordered', { ids: moving.map((n) => n.id), toIndex: after.indexOf(moving[0]), rows: moving.map((n) => n.data) });
+      return true;
+    }
+    _setOrder(order) {
+      this.nodes = order.slice();
+      this.rows.length = 0;
+      for (const n of this.nodes) this.rows.push(n.data);
+      this.refresh({ side: false });
     }
 
     /* ---------------- selection ---------------- */
@@ -2539,7 +2731,7 @@
     }
     autoSizeColumn(id, skipRender) {
       const col = this._colById(id);
-      if (!col || col.special === 'sel') return;
+      if (!col || this._isUtil(col)) return;
       if (!this._mctx) this._mctx = document.createElement('canvas').getContext('2d');
       const ctx = this._mctx;
       const cs = getComputedStyle(this.rootEl);
@@ -2665,7 +2857,7 @@
           if (e.kind === 'detail') continue;
           for (let c = 0; c < this.visible.length; c++) {
             const col = this.visible[c];
-            if (col.special === 'sel') continue;
+            if (this._isUtil(col)) continue;
             if (this._cellText(col, e).toLowerCase().indexOf(t) >= 0) m.push({ r, c });
           }
         }
@@ -2838,7 +3030,7 @@
     chartRange(type) {
       const rg = this.range;
       if (!rg) return;
-      const cols = this.visible.slice(rg.c1, rg.c2 + 1).filter((c) => c.special !== 'sel');
+      const cols = this.visible.slice(rg.c1, rg.c2 + 1).filter((c) => !this._isUtil(c));
       const rows = this.display.slice(rg.r1, rg.r2 + 1).filter((e) => e.kind !== 'detail');
       if (!rows.length) return;
       const numeric = (c) => rows.some((e) => isNum(this._cellValue(c, e.node)));
@@ -2894,7 +3086,7 @@
 
     /* ---------------- export ---------------- */
     _exportMatrix() {
-      const cols = this.visible.filter((c) => c.special !== 'sel');
+      const cols = this.visible.filter((c) => !this._isUtil(c));
       const header = cols.map((c) => (c.generated && c.groupHeader ? c.groupHeader + ' - ' + c.header : c.header));
       const val = (c, e) => {
         if (c.special === 'group') {

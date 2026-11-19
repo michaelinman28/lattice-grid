@@ -395,6 +395,12 @@
     contextMenuItems: null,
     exportFileName: 'export',
     rowReorder: false,
+    rangeSelection: true,
+    fillHandle: true,
+    contextMenu: true,
+    columnMenu: true,
+    columnMove: true,
+    readOnly: false,
   };
 
   /* =====================================================================
@@ -613,7 +619,7 @@
       return s;
     }
     _isEditable(col, e) {
-      if (!e || !col || col.special || col.generated || !col.def) return false;
+      if (this.o.readOnly || !e || !col || col.special || col.generated || !col.def) return false;
       const n = e.node;
       if (!n.data) return false;
       if (e.kind !== 'leaf' && !(n.tree && !col.agg)) return false;
@@ -1225,11 +1231,13 @@
         d.appendChild(s);
       }
       if (this.filters.has(c.id)) { const f = el('span', 'lg-filter-ind'); f.innerHTML = FUNNEL_SVG; f.title = 'Filtered'; d.appendChild(f); }
-      const m = el('button', 'lg-hmenu', '⋮');
-      m.type = 'button';
-      m.title = 'Column menu';
-      m.dataset.menu = c.id;
-      d.appendChild(m);
+      if (this.o.columnMenu) {
+        const m = el('button', 'lg-hmenu', '⋮');
+        m.type = 'button';
+        m.title = 'Column menu';
+        m.dataset.menu = c.id;
+        d.appendChild(m);
+      }
       if (c.resizable) { const r = el('div', 'lg-resize'); r.dataset.resize = c.id; d.appendChild(r); }
       return d;
     }
@@ -1376,7 +1384,7 @@
           if (ci === rg.c2) sh.push('inset -1px 0 0 var(--lg-accent)');
           if (sh.length) d.style.boxShadow = sh.join(',');
         }
-        if (r === rg.r2 && ci === rg.c2 && !this.editing && e.kind === 'leaf') d.appendChild(el('div', 'lg-fill'));
+        if (this.o.fillHandle && r === rg.r2 && ci === rg.c2 && !this.editing && e.kind === 'leaf') d.appendChild(el('div', 'lg-fill'));
       }
       if (!total && this.focus && this.focus.r === r && this.focus.c === ci) d.classList.add('lg-focus');
       const fm = this.find.term ? this.find.matches[this.find.index] : null;
@@ -1782,7 +1790,7 @@
       if (!col || this._isUtil(col)) return;
       const sx = ev.clientX, sy = ev.clientY;
       let dragging = false, ghost = null, lastTarget = null, lastZone = null;
-      const canDrag = !col.special && !col.generated;
+      const canDrag = this.o.columnMove && !col.special && !col.generated;
       const clearMarks = () => {
         if (lastTarget) lastTarget.classList.remove('lg-drop-target', 'lg-drop-after');
         if (lastZone) lastZone.classList.remove('lg-drop-hover');
@@ -1920,6 +1928,7 @@
       return !!rg && p.r >= rg.r1 && p.r <= rg.r2 && p.c >= rg.c1 && p.c <= rg.c2;
     }
     _setRange(anchor, end) {
+      if (!this.o.rangeSelection) end = anchor; // single-cell focus only
       this.focus = { r: anchor.r, c: anchor.c };
       this.rangeEnd = { r: end.r, c: end.c };
       this.range = { r1: Math.min(anchor.r, end.r), r2: Math.max(anchor.r, end.r), c1: Math.min(anchor.c, end.c), c2: Math.max(anchor.c, end.c) };
@@ -2979,7 +2988,7 @@
     }
 
     _onContextMenu(e) {
-      if (e.target.closest('.lg-detail')) return;
+      if (!this.o.contextMenu || e.target.closest('.lg-detail')) return;
       e.preventDefault();
       const p = this._cellFromEvent(e);
       if (p && !this._inRange(p)) this._setRange(p, p);

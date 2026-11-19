@@ -91,6 +91,10 @@
           <button id="colPickerBtn" type="button" aria-haspopup="true" aria-expanded="false">☰ Columns ▾</button>
           <div class="picker-menu" id="colPicker" hidden></div>
         </div>
+        <button id="simplePaging" type="button" aria-pressed="false">Paging: Off</button>
+        <label class="hint" id="simplePageSizeWrap" hidden>Rows per page
+          <select id="simplePageSize"><option>10</option><option selected>25</option><option>50</option><option>100</option></select>
+        </label>
         <button id="simpleClear" type="button">Clear sort &amp; filters</button>
         <button id="simpleReset" type="button">Reset</button>
         <span class="hint" id="simpleHint"></span>
@@ -105,6 +109,7 @@
             <li><b>Filter:</b> type in the boxes under the headers. Number columns accept <kbd>&gt;90000</kbd> or <kbd>2..4</kbd>. "All" opens a checkbox list</li>
             <li><b>Reorder rows:</b> drag the <b>⠿</b> handle, or press <kbd>Alt+↑</kbd>/<kbd>Alt+↓</kbd>. This pauses while a sort or filter is active</li>
             <li><b>Choose columns:</b> use the <b>Columns</b> button to show or hide columns</li>
+            <li><b>Paging:</b> the <b>Paging</b> button switches between one scrolling list and pages, without reloading the grid</li>
           </ul>
         </div>
         <div class="card" style="grid-column: span 2; min-width: 0">
@@ -119,7 +124,8 @@
   columnMenu: false, contextMenu: false, rangeSelection: false,
   fillHandle: false, readOnly: true,
 });
-// column picker: grid.setColumnVisible(id, true | false)</pre>
+// column picker: grid.setColumnVisible(id, true | false)
+// paging on/off: grid.setPagination(true, 25) / grid.setPagination(false)</pre>
         </div>
       </div>
     </section>
@@ -324,6 +330,10 @@
       sales.on('sortChanged', (s) => log('sortChanged  ' + (s.map((x) => x.id + ' ' + x.dir).join(', ') || '(none)')));
       sales.on('filterChanged', (m) => log('filterChanged  ' + (Object.keys(m).join(', ') || '(none)')));
       sales.on('columnMoved', (e) => log('columnMoved  ' + e.column));
+      sales.on('paginationChanged', (e) => {
+        document.getElementById('paging').checked = e.enabled;
+        log('paginationChanged  ' + (e.enabled ? 'page ' + (e.page + 1) + ' of ' + e.pageCount + ' (' + e.pageSize + ' per page)' : 'off'));
+      });
       sales.on('rowsReordered', (e) => log('rowsReordered  ' + e.ids.length + ' row(s) → position ' + (e.toIndex + 1)));
       window.salesGrid = sales; // handy for poking at the API from the console
     }
@@ -345,7 +355,7 @@
       sales.setRows(salesRows);
       log('setRows  ' + salesRows.length.toLocaleString() + ' rows in ' + Math.round(performance.now() - t0) + ' ms');
     });
-    document.getElementById('paging').addEventListener('change', createSales);
+    document.getElementById('paging').addEventListener('change', (e) => sales.setPagination(e.target.checked));
     document.getElementById('save').addEventListener('click', () => {
       savedState = sales.getState();
       try { localStorage.setItem('lattice-demo-state', JSON.stringify(savedState)); } catch (e) { /* storage unavailable */ }
@@ -514,14 +524,24 @@
     function createSimple() {
       if (simple) simple.destroy();
       simple = new LatticeGrid('#simpleGrid', {
-        columns: simpleColumns, rows: makeTeam(200), rowId: (r) => r.id, theme,
+        columns: simpleColumns, rows: makeTeam(200), rowId: (r) => r.id, theme, pageSize: 25,
         rowReorder: true, columnMove: true, floatingFilters: true,
         toolbar: false, groupPanel: false, sideBar: false, statusBar: true,
         columnMenu: false, contextMenu: false, rangeSelection: false, fillHandle: false, readOnly: true,
       });
       const hint = document.getElementById('simpleHint');
-      const update = () => { hint.textContent = simple.canReorderRows() ? 'Row dragging is on.' : 'Row dragging is paused while a sort or filter is active.'; };
-      ['sortChanged', 'filterChanged'].forEach((ev) => simple.on(ev, update));
+      const update = () => {
+        const why = simple.getReorderBlockReason();
+        hint.textContent = why ? 'Row dragging is paused: ' + why + '.' : 'Row dragging is on.';
+        const info = simple.getPaginationInfo();
+        const btn = document.getElementById('simplePaging');
+        btn.textContent = 'Paging: ' + (info.enabled ? 'On' : 'Off');
+        btn.classList.toggle('on', info.enabled);
+        btn.setAttribute('aria-pressed', String(info.enabled));
+        document.getElementById('simplePageSizeWrap').hidden = !info.enabled;
+        document.getElementById('simplePageSize').value = String(info.pageSize);
+      };
+      ['sortChanged', 'filterChanged', 'paginationChanged'].forEach((ev) => simple.on(ev, update));
       simple.on('rowsReordered', (e) => { hint.textContent = 'Moved ' + e.ids.length + ' row(s) to position ' + (e.toIndex + 1) + '. Ctrl+Z to undo.'; });
       update();
       window.simpleGrid = simple;
@@ -562,6 +582,10 @@
     pickerBtn.addEventListener('click', () => togglePicker(picker.hidden));
     document.addEventListener('mousedown', (e) => { if (!picker.hidden && !e.target.closest('.picker')) togglePicker(false); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !picker.hidden) togglePicker(false); });
+    document.getElementById('simplePaging').addEventListener('click', () => {
+      simple.setPagination(!simple.getPaginationInfo().enabled, +document.getElementById('simplePageSize').value);
+    });
+    document.getElementById('simplePageSize').addEventListener('change', (e) => simple.setPageSize(+e.target.value));
     document.getElementById('simpleClear').addEventListener('click', () => { simple.setSort([]); simple.clearFilters(); });
     document.getElementById('simpleReset').addEventListener('click', () => { togglePicker(false); createSimple(); });
 

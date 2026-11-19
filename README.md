@@ -98,7 +98,7 @@ Sorting, filtering and resizing are on for every column. Switch them off per col
 | `rowReorder: true` | Drag handles to reorder rows |
 | `sideBar: true` or `'open'` | Side panel for showing/hiding columns, grouping, pivoting and filters |
 | `totalsRow: true` | Totals row pinned to the bottom |
-| `pagination: true` | Page through rows instead of scrolling |
+| `pagination: true` | Page through rows instead of scrolling. Can also be switched on and off at any time with `setPagination()` |
 | `groupBy: [...]` | Group rows by one or more columns |
 | `pivotMode: true` | Pivot table (with `pivotBy` and aggregated columns) |
 | `treeData: true` | Show a hierarchy (with `getTreePath`) |
@@ -258,7 +258,7 @@ columns: [
 | `treeColumnHeader` | `'Hierarchy'` | Header of the tree column |
 | `masterDetail` / `detailRenderer` / `detailHeight` | `false` / – / `280` | See [Master / detail](#master--detail) |
 | `totalsRow` | `false` | Pinned totals row |
-| `pagination` / `pageSize` | `false` / `100` | Paging |
+| `pagination` / `pageSize` | `false` / `100` | Paging. See [Paging](#paging) |
 | `externalFilter(row)` | – | Your own filter function: return `false` to hide a row |
 | `rowClass(row)` | – | Extra CSS class for a row |
 | `exportFileName` | `'export'` | File name for CSV/Excel downloads |
@@ -393,10 +393,29 @@ The toolbar **CSV** and **Excel** buttons, or `grid.exportCsv()` and `grid.expor
 showing: current filters, sort and grouping. Excel files are real `.xlsx` with a bold header, a frozen top
 row and autofilter. `grid.getCsv()` and `grid.getExcelBlob()` return the data instead of downloading it.
 
+### Paging
+
+Start with paging on using `pagination: true` (and optionally `pageSize`, default 100). You can also switch
+it at any time without rebuilding the grid:
+
+```js
+grid.setPagination(true, 25);   // turn paging on, 25 rows per page
+grid.setPageSize(50);           // change page size (goes back to page 1)
+grid.setPage(2);                // jump to the third page (pages count from 0)
+grid.setPagination(false);      // back to one scrolling list
+grid.getPaginationInfo();       // { enabled, page, pageSize, pageCount, rowCount }
+```
+
+When paging is on, a pager bar appears above the status bar, with page size, first, previous, next and
+last. Sorting, filtering and grouping still apply to all rows; paging just splits the result. Grouped
+rows are paged as they are displayed. Row reordering pauses while paging is on.
+The `paginationChanged` event fires whenever paging is switched or the page changes, and the paging
+choice is included in `getState()` / `setState()`.
+
 ### Saving and restoring the layout
 
 ```js
-const state = grid.getState();                        // columns, widths, order, sort, filters, grouping, pivot
+const state = grid.getState();                        // columns, widths, order, sort, filters, grouping, pivot, paging
 localStorage.setItem('myGrid', JSON.stringify(state));
 grid.setState(JSON.parse(localStorage.getItem('myGrid')));
 ```
@@ -418,12 +437,13 @@ changes.
 | Find | `setFind(text)`, `findNext(1 \| -1)` |
 | Grouping / pivot | `groupBy(ids)`, `pivotBy(ids)`, `setPivotMode(bool)`, `setAggregate(colId, fn)`, `expandAll()`, `collapseAll()`, `toggleExpand(node)`, `toggleDetail(node)` |
 | Selection | `selectAll()`, `deselectAll()`, `getSelectedRows()` |
-| Rows | `moveRows(ids, toIndex)`, `canReorderRows()` |
+| Rows | `moveRows(ids, toIndex)`, `canReorderRows()`, `getReorderBlockReason()` |
+| Paging | `setPagination(on, pageSize)`, `setPageSize(n)`, `setPage(n)`, `getPaginationInfo()` |
 | Columns | `moveColumn(id, targetId, after)`, `setColumnVisible(id, bool)`, `pinColumn(id, 'left' \| 'right' \| null)`, `autoSizeColumn(id)`, `autoSizeAll()`, `resetColumns()` |
 | Editing | `startEdit(rowIndex, colIndex)`, `stopEdit(commit)`, `undo()`, `redo()` |
 | Clipboard / charts | `copyRange(withHeaders)`, `pasteFromClipboard()`, `chartRange(type)` |
 | Export | `exportCsv(name)`, `getCsv()`, `exportExcel(name)`, `getExcelBlob()` |
-| State / misc | `getState()`, `setState(state)`, `setTheme('light' \| 'dark')`, `toggleSideBar()`, `setPage(n)`, `ensureVisible(rowIndex, colIndex)`, `destroy()` |
+| State / misc | `getState()`, `setState(state)`, `setTheme('light' \| 'dark')`, `toggleSideBar()`, `ensureVisible(rowIndex, colIndex)`, `destroy()` |
 
 ---
 
@@ -442,6 +462,7 @@ grid.off('cellValueChanged', handler);
 | `filterChanged` | filter model object |
 | `rangeChanged` | `{ r1, r2, c1, c2 }` |
 | `rowsReordered` | `{ ids, toIndex, rows }` |
+| `paginationChanged` | `{ enabled, page, pageSize, pageCount, rowCount }` |
 | `columnMoved` | `{ column }` |
 | `columnResized` | `{ column, width }` |
 
@@ -497,7 +518,7 @@ python3 -m http.server 8000      # any static web server works
 The demo has four tabs:
 
 - **Simple**: a pared-down grid with only movable columns, column filters, sorting, row drag-and-drop and a
-  show/hide columns picker. Its configuration is shown on the page.
+  show/hide columns picker, plus a Paging on/off button. Its configuration is shown on the page.
 - **Sales analytics**: everything turned on, up to 100,000 rows.
 - **Tree data**: an org chart.
 - **Master / detail**: customers with nested order grids. The grids are also exposed as

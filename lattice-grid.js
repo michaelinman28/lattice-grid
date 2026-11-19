@@ -1029,8 +1029,9 @@
         this.sideBar = el('div', 'lg-sidebar');
         main.appendChild(this.sideBar);
       }
-      if (this.o.pagination) { this.pagerEl = el('div', 'lg-pager'); root.appendChild(this.pagerEl); }
+      if (this.o.pagination) this._ensurePager();
       if (this.o.statusBar) { this.statusEl = el('div', 'lg-status'); root.appendChild(this.statusEl); }
+      if (this.pagerEl && this.statusEl) root.insertBefore(this.pagerEl, this.statusEl);
       this._bindEvents();
       this._lastVpW = -1;
       this._ro = new ResizeObserver(() => {
@@ -1549,17 +1550,27 @@
       return { count, nums, sum, min, max };
     }
 
+    _ensurePager() {
+      if (this.pagerEl) return;
+      this.pagerEl = el('div', 'lg-pager');
+      if (this.statusEl) this.rootEl.insertBefore(this.pagerEl, this.statusEl);
+      else this.rootEl.appendChild(this.pagerEl);
+    }
     _renderPager() {
       const p = this.pagerEl;
       if (!p) return;
+      p.style.display = this.o.pagination ? '' : 'none';
       p.innerHTML = '';
+      if (!this.o.pagination) return;
       const size = this.o.pageSize;
       const total = this.allDisplay.length;
       const pages = Math.max(1, Math.ceil(total / size));
       const sel = el('select');
-      [25, 50, 100, 250, 1000].forEach((n) => { const op = el('option', null, String(n)); op.value = n; sel.appendChild(op); });
+      const sizes = [25, 50, 100, 250, 1000];
+      if (sizes.indexOf(size) < 0) { sizes.push(size); sizes.sort((a, b) => a - b); }
+      sizes.forEach((n) => { const op = el('option', null, String(n)); op.value = n; sel.appendChild(op); });
       sel.value = String(size);
-      sel.addEventListener('change', () => { this.o.pageSize = +sel.value; this.setPage(0); });
+      sel.addEventListener('change', () => this.setPageSize(+sel.value));
       const from = total ? this.page * size + 1 : 0, to = Math.min(total, (this.page + 1) * size);
       const mk = (t, title, pg, dis) => { const b = el('button', 'lg-btn lg-btn-sm', t); b.type = 'button'; b.title = title; b.disabled = dis; b.addEventListener('click', () => this.setPage(pg)); return b; };
       p.append(el('span', null, 'Page size:'), sel, el('span', null, intFmt.format(from) + '–' + intFmt.format(to) + ' of ' + intFmt.format(total)),
@@ -1572,6 +1583,28 @@
       this._flatten();
       this.viewport.scrollTop = 0;
       this._afterModelChange();
+      this.emit('paginationChanged', this.getPaginationInfo());
+    }
+    /** Turns paging on or off at runtime. Optionally sets the page size too. */
+    setPagination(on, pageSize) {
+      if (this.editing) this.stopEdit(true, true);
+      this.o.pagination = !!on;
+      if (pageSize > 0) this.o.pageSize = Math.floor(pageSize);
+      if (this.o.pagination) this._ensurePager();
+      this.page = 0;
+      this._flatten();
+      this.viewport.scrollTop = 0;
+      this._afterModelChange();
+      this.emit('paginationChanged', this.getPaginationInfo());
+    }
+    setPageSize(n) {
+      if (!(n > 0)) return;
+      this.o.pageSize = Math.floor(n);
+      this.setPage(0);
+    }
+    getPaginationInfo() {
+      const size = this.o.pageSize, total = this.allDisplay.length;
+      return { enabled: !!this.o.pagination, page: this.page, pageSize: size, pageCount: this.o.pagination ? Math.max(1, Math.ceil(total / size)) : 1, rowCount: total };
     }
 
     /* ---------------- side bar ---------------- */
@@ -2340,10 +2373,12 @@
       if (this.o.treeData) return 'not available for tree data';
       if (this.pivotMode) return 'turn off pivot mode to reorder rows';
       if (this.groupCols.length) return 'remove row grouping to reorder rows';
-      if (this.o.pagination) return 'not available with pagination';
+      if (this.o.pagination) return 'turn off paging to reorder rows';
       return null;
     }
     canReorderRows() { return !this._reorderBlockReason(); }
+    /** Why row reordering is paused right now, or null if it is allowed. */
+    getReorderBlockReason() { return this._reorderBlockReason(); }
 
     _movingNodes(node) {
       // dragging a selected row moves every selected row, keeping their order
@@ -2810,7 +2845,10 @@
       else if (zone === 'value') { const c = this.colMap.get(id); if (c) c.agg = null; }
       if (!silent) this.refresh();
     }
-    resetColumns() { this.setState(this._initialState); }
+    resetColumns() {
+      // keeps the current paging choice; everything else returns to start-up
+      this.setState(Object.assign({}, this._initialState, { pagination: { enabled: !!this.o.pagination, pageSize: this.o.pageSize } }));
+    }
 
     /* ---------------- state ---------------- */
     getState() {
@@ -2823,6 +2861,7 @@
         pivotBy: this.pivotCols.slice(),
         pivotMode: this.pivotMode,
         quickFilter: this.quickFilter,
+        pagination: { enabled: !!this.o.pagination, pageSize: this.o.pageSize },
       };
     }
     setState(s) {
@@ -2844,8 +2883,15 @@
       this.pivotCols = (s.pivotBy || []).filter((id) => this.colMap.has(id));
       this.pivotMode = !!s.pivotMode;
       this.quickFilter = s.quickFilter || '';
+      if (s.pagination) {
+        this.o.pagination = !!s.pagination.enabled;
+        if (s.pagination.pageSize > 0) this.o.pageSize = s.pagination.pageSize;
+        if (this.o.pagination) this._ensurePager();
+        this.page = 0;
+      }
       if (this.quickInput) this.quickInput.value = this.quickFilter;
       this.refresh();
+      if (s.pagination) this.emit('paginationChanged', this.getPaginationInfo());
     }
 
     /* ---------------- find ---------------- */

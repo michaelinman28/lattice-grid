@@ -82,9 +82,7 @@
   background: var(--lg-input-bg); color: var(--lg-fg); font: inherit; min-width: 0;
 }
 .lg-input:focus { outline: 2px solid var(--lg-accent); outline-offset: -1px; border-color: transparent; }
-.lg-quick { width: 220px; }
 .lg-find { display: flex; align-items: center; gap: 2px; }
-.lg-find .lg-input { width: 150px; }
 .lg-find-info { color: var(--lg-muted); font-size: 12px; min-width: 52px; padding-left: 4px; }
 .lg-btn {
   height: 30px; padding: 0 10px; border: 1px solid var(--lg-border-strong); border-radius: 5px;
@@ -93,6 +91,23 @@
 .lg-btn:hover { border-color: var(--lg-accent); color: var(--lg-accent); }
 .lg-btn.lg-active { background: var(--lg-accent); color: var(--lg-accent-fg); border-color: var(--lg-accent); }
 .lg-btn-sm { height: 26px; padding: 0 8px; }
+
+/* clear (×) button inside filter inputs */
+.lg-clearable { position: relative; display: flex; align-items: center; min-width: 0; width: 100%; }
+.lg-clearable > input { width: 100%; padding-right: 24px; }
+.lg-clearable-date > input { padding-right: 46px; }
+.lg-clearable input::-webkit-search-cancel-button { display: none; }
+.lg-clear {
+  position: absolute; right: 5px; top: 50%; transform: translateY(-50%); display: none;
+  width: 16px; height: 16px; padding: 0; border: 0; border-radius: 50%; cursor: pointer;
+  background: var(--lg-muted); color: var(--lg-bg); font: 700 12px/16px system-ui, sans-serif; opacity: 0.65;
+  align-items: center; justify-content: center;
+}
+.lg-clearable-date > .lg-clear { right: 28px; }
+.lg-clearable.lg-has-value > .lg-clear { display: flex; }
+.lg-clear:hover, .lg-clear:focus-visible { opacity: 1; }
+.lg-quick-wrap { width: 220px; }
+.lg-find .lg-clearable { width: 150px; }
 
 /* ---------- group panel / drop zones ---------- */
 .lg-group-panel {
@@ -340,7 +355,7 @@
 .lg-chart-body svg { display: block; width: 100%; height: auto; }
 
 @media (max-width: 640px) {
-  .lg-quick { width: 100%; }
-  .lg-find .lg-input { width: 110px; }
+  .lg-quick-wrap { width: 100%; }
+  .lg-find .lg-clearable { width: 120px; }
   .lg-sidebar { position: absolute; right: 0; top: 0; bottom: 0; z-index: 6; box-shadow: var(--lg-shadow); width: min(270px, 85%); }
 }

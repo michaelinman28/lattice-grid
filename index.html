@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lattice Grid Demo</title>
-  <link rel="stylesheet" href="lattice-grid.css?v=1.3.0">
+  <link rel="stylesheet" href="lattice-grid.css?v=1.4.0">
   <style>
     :root {
       --page-bg: #eef1f5; --page-fg: #1f2430; --page-muted: #5b6474; --card-bg: #ffffff; --card-border: #d9dee5; --accent: #2563eb;
@@ -105,8 +105,9 @@
           <h3>What this example turns on</h3>
           <ul>
             <li><b>Move columns:</b> drag a column header left or right</li>
+            <li><b>Quick Filter:</b> the search box above the table matches across every column</li>
             <li><b>Sort:</b> click a header. Shift+click to sort by more than one column</li>
-            <li><b>Filter:</b> type in the boxes under the headers. Number columns accept <kbd>&gt;90000</kbd> or <kbd>2..4</kbd>. "All" opens a checkbox list</li>
+            <li><b>Filter:</b> type in the boxes under the headers. Number columns accept <kbd>&gt;90000</kbd> or <kbd>2..4</kbd>. Click <b>×</b> (or press <kbd>Esc</kbd>) to clear a box. "All" opens a checkbox list</li>
             <li><b>Reorder rows:</b> drag the <b>⠿</b> handle, or press <kbd>Alt+↑</kbd>/<kbd>Alt+↓</kbd>. This pauses while a sort or filter is active</li>
             <li><b>Choose columns:</b> use the <b>Columns</b> button to show or hide columns</li>
             <li><b>Paging:</b> the <b>Paging</b> button switches between one scrolling list and pages, without reloading the grid</li>
@@ -119,8 +120,9 @@
   rowReorder: true,          // drag-and-drop rows
   columnMove: true,          // drag headers to reorder columns (default)
   floatingFilters: true,     // filter boxes under each header (default)
+  toolbar: { quickFilter: true },  // toolbar with only the Quick Filter box
   // everything else switched off:
-  toolbar: false, groupPanel: false, sideBar: false, statusBar: true,
+  groupPanel: false, sideBar: false, statusBar: true,
   columnMenu: false, contextMenu: false, rangeSelection: false,
   fillHandle: false, readOnly: true,
 });
@@ -201,13 +203,13 @@
     </section>
   </main>
 
-  <script src="lattice-grid.js?v=1.3.0"></script>
+  <script src="lattice-grid.js?v=1.4.0"></script>
   <script>
   (function () {
     'use strict';
     // The demo needs the matching library version. A cached older lattice-grid.js would otherwise
     // break the page, so say so plainly instead of failing silently.
-    const NEEDED = '1.3.0';
+    const NEEDED = '1.4.0';
     if (typeof LatticeGrid === 'undefined' || LatticeGrid.version !== NEEDED) {
       const msg = document.createElement('div');
       msg.setAttribute('role', 'alert');
@@ -546,7 +548,7 @@
       simple = new LatticeGrid('#simpleGrid', {
         columns: simpleColumns, rows: makeTeam(200), rowId: (r) => r.id, theme, pageSize: 25,
         rowReorder: true, columnMove: true, floatingFilters: true,
-        toolbar: false, groupPanel: false, sideBar: false, statusBar: true,
+        toolbar: { quickFilter: true }, groupPanel: false, sideBar: false, statusBar: true,
         columnMenu: false, contextMenu: false, rangeSelection: false, fillHandle: false, readOnly: true,
       });
       const hint = document.getElementById('simpleHint');

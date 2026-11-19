@@ -76,7 +76,7 @@ Features fall into three groups.
 
 | Option | What it does |
 |---|---|
-| `toolbar` | Top bar with quick filter, find, undo/redo, expand/collapse and export buttons |
+| `toolbar` | Top bar with quick filter, find, undo/redo, expand/collapse and export buttons. Pass an object to pick items, e.g. `{ quickFilter: true }` |
 | `groupPanel` | "Drag a column here to group" bar |
 | `floatingFilters` | Filter inputs under each column header |
 | `statusBar` | Bottom bar with row counts and sum/avg/min/max of selected cells |
@@ -111,6 +111,12 @@ They include `editable`, `filter`, `aggregate`, `sparkline`, `pinned`, `render`,
 ---
 
 ## Recipes
+
+### Just a Quick Filter above the table
+
+```js
+new LatticeGrid('#grid', { columns, rows, toolbar: { quickFilter: true }, groupPanel: false });
+```
 
 ### A plain, read-only table
 
@@ -231,7 +237,7 @@ columns: [
 | `rowHeight` / `headerHeight` | `34` / `38` | Pixels |
 | `emptyMessage` | `'No rows to show'` | Shown when there are no rows |
 | **Interface** | | |
-| `toolbar` | `true` | Top toolbar |
+| `toolbar` | `true` | Top toolbar. `true` shows every item; an object shows only the items set to `true`: `quickFilter`, `find`, `undoRedo`, `expandCollapse`, `export`, `panels` |
 | `groupPanel` | `true` | Group-by drop bar |
 | `floatingFilters` | `true` | Filter inputs under the headers |
 | `statusBar` | `true` | Bottom status bar |
@@ -280,6 +286,8 @@ the sort. From code: `grid.setSort([{ id: 'age', dir: 'desc' }, { id: 'name', di
   - *Date:* on, before, after, between.
   - *Set:* a checkbox list of every value, with search.
 - **Floating filters.** Type straight under the header. Number columns accept `>100`, `<=5`, `!=0` and `10..20`.
+- **Clearing.** Every typed filter box (under the headers, in the filter popup and side panel, and the Quick Filter
+  and Find boxes) shows a **×** once it has text. Click it, or press Esc, to clear that box and its filter.
 - **Quick filter.** The toolbar search box matches across all columns. From code: `grid.setQuickFilter('text')`.
 - **From code:** `grid.setFilter('age', { type: 'number', op: 'gt', value: 30 })`,
   `grid.setFilter('city', { type: 'set', values: ['London', 'Paris'] })` or `grid.clearFilters()`.

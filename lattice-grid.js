@@ -1,5 +1,5 @@
 /*!
- * Lattice Grid v1.3.0
+ * Lattice Grid v1.4.0
  * A dependency-free JavaScript data grid written from scratch.
  * MIT License.
  *
@@ -88,6 +88,38 @@
     if (typeof v === 'boolean') return v ? '✓' : '✗';
     if (Array.isArray(v)) return v.join(', ');
     return String(v);
+  }
+
+  /**
+   * Wraps a text/number/date input with a small "×" button that clears what was typed.
+   * The button only shows while the input has a value. Esc also clears.
+   * onClear runs immediately (no debounce) after the input is emptied.
+   */
+  function clearable(input, onClear) {
+    const wrap = el('div', 'lg-clearable' + (input.type === 'date' ? ' lg-clearable-date' : ''));
+    if (input.type === 'search') input.type = 'text'; // avoid a second, browser-drawn ×
+    const x = el('button', 'lg-clear', '×');
+    x.type = 'button';
+    x.tabIndex = -1;
+    x.title = 'Clear';
+    x.setAttribute('aria-label', 'Clear ' + (input.getAttribute('aria-label') || input.placeholder || 'text'));
+    const sync = () => wrap.classList.toggle('lg-has-value', input.value !== '');
+    const clear = () => {
+      input.value = '';
+      sync();
+      input.focus();
+      if (onClear) onClear();
+    };
+    input.addEventListener('input', sync);
+    input.addEventListener('change', sync);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && input.value !== '') { e.preventDefault(); e.stopPropagation(); clear(); }
+    });
+    x.addEventListener('mousedown', (e) => e.preventDefault()); // keep focus in the input
+    x.addEventListener('click', (e) => { e.stopPropagation(); clear(); });
+    wrap.append(input, x);
+    sync();
+    return wrap;
   }
 
   function download(blob, name) {
@@ -377,7 +409,7 @@
     groupPanel: true,
     sideBar: false, // false | true (closed) | 'open'
     statusBar: true,
-    toolbar: true,
+    toolbar: true, // true = all items, or { quickFilter, find, undoRedo, expandCollapse, export, panels }
     floatingFilters: true,
     pagination: false,
     pageSize: 100,
@@ -1006,6 +1038,7 @@
       this.container.innerHTML = '';
       this.container.appendChild(root);
       if (this.o.toolbar) root.appendChild(this._buildToolbar());
+      if (!this._toolbarHas('quickFilter')) this.quickInput = null;
       if (this.o.groupPanel) {
         this.groupPanel = el('div', 'lg-group-panel');
         this.groupPanel.dataset.dropZone = 'group';
@@ -1042,14 +1075,21 @@
       this._ro.observe(vp);
     }
 
+    _toolbarHas(item) {
+      const t = this.o.toolbar;
+      return t === true || (!!t && typeof t === 'object' && !!t[item]);
+    }
     _buildToolbar() {
       const tb = el('div', 'lg-toolbar');
+      const has = (k) => this._toolbarHas(k);
       const q = el('input', 'lg-input lg-quick');
       q.type = 'search';
       q.placeholder = 'Quick filter…';
       q.setAttribute('aria-label', 'Quick filter');
-      q.addEventListener('input', debounce(() => this.setQuickFilter(q.value), 160));
+      q.addEventListener('input', debounce(() => { if (this.quickFilter !== q.value.trim()) this.setQuickFilter(q.value); }, 160));
       this.quickInput = q;
+      const qWrap = clearable(q, () => this.setQuickFilter(''));
+      qWrap.classList.add('lg-quick-wrap');
       const fw = el('div', 'lg-find');
       const f = el('input', 'lg-input');
       f.type = 'search';
@@ -1060,21 +1100,16 @@
       f.addEventListener('input', debounce(() => this.setFind(f.value), 160));
       f.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); this.findNext(e.shiftKey ? -1 : 1); }
-        if (e.key === 'Escape') { f.value = ''; this.setFind(''); this.viewport.focus(); }
       });
-      this.findInput = f;
-      this.findInfo = info;
-      fw.append(f, mkBtn('‹', 'Previous match (Shift+Enter)', () => this.findNext(-1), 'lg-btn-sm'), mkBtn('›', 'Next match (Enter)', () => this.findNext(1), 'lg-btn-sm'), info);
-      tb.append(
-        q, fw, el('div', 'lg-spacer'),
-        mkBtn('↶', 'Undo (Ctrl+Z)', () => this.undo()),
-        mkBtn('↷', 'Redo (Ctrl+Y)', () => this.redo()),
-        mkBtn('Expand', 'Expand all groups', () => this.expandAll()),
-        mkBtn('Collapse', 'Collapse all groups', () => this.collapseAll()),
-        mkBtn('CSV', 'Export to CSV', () => this.exportCsv()),
-        mkBtn('Excel', 'Export to Excel (.xlsx)', () => this.exportExcel())
-      );
-      if (this.o.sideBar) tb.append(mkBtn('☰ Panels', 'Toggle columns & filters panel', () => this.toggleSideBar()));
+      const fWrap = clearable(f, () => this.setFind(''));
+      fw.append(fWrap, mkBtn('‹', 'Previous match (Shift+Enter)', () => this.findNext(-1), 'lg-btn-sm'), mkBtn('›', 'Next match (Enter)', () => this.findNext(1), 'lg-btn-sm'), info);
+      if (has('quickFilter')) tb.append(qWrap);
+      if (has('find')) { this.findInput = f; this.findInfo = info; tb.append(fw); }
+      tb.append(el('div', 'lg-spacer'));
+      if (has('undoRedo')) tb.append(mkBtn('↶', 'Undo (Ctrl+Z)', () => this.undo()), mkBtn('↷', 'Redo (Ctrl+Y)', () => this.redo()));
+      if (has('expandCollapse')) tb.append(mkBtn('Expand', 'Expand all groups', () => this.expandAll()), mkBtn('Collapse', 'Collapse all groups', () => this.collapseAll()));
+      if (has('export')) tb.append(mkBtn('CSV', 'Export to CSV', () => this.exportCsv()), mkBtn('Excel', 'Export to Excel (.xlsx)', () => this.exportExcel()));
+      if (this.o.sideBar && has('panels')) tb.append(mkBtn('☰ Panels', 'Toggle columns & filters panel', () => this.toggleSideBar()));
       return tb;
     }
 
@@ -1261,10 +1296,11 @@
       inp.setAttribute('aria-label', 'Filter ' + c.header);
       inp.value = this._floatingText(c, m);
       inp.addEventListener('input', debounce(() => {
+        if (!inp.isConnected) return; // header was re-rendered (e.g. cleared) meanwhile
         const model = this._parseFloating(c, inp.value);
         if (model !== undefined) this.setFilter(c.id, model);
       }, 250));
-      d.appendChild(inp);
+      d.appendChild(clearable(inp, () => this.setFilter(c.id, null)));
       return d;
     }
     _floatingText(col, m) {
@@ -2618,13 +2654,18 @@
     clearFilters() {
       this.filters.clear();
       this.quickFilter = '';
-      if (this.quickInput) this.quickInput.value = '';
+      if (this.quickInput) { this.quickInput.value = ''; this.quickInput.dispatchEvent(new Event('change')); }
       this.emit('filterChanged', {});
       this.refresh();
     }
     setQuickFilter(text) {
       this.quickFilter = String(text || '').trim();
+      if (this.quickInput && this.quickInput.value.trim() !== this.quickFilter) {
+        this.quickInput.value = this.quickFilter;
+        this.quickInput.dispatchEvent(new Event('change'));
+      }
       this.page = 0;
+      this.emit('filterChanged', this.getFilterModel());
       this.refresh({ side: false });
     }
 
@@ -2697,7 +2738,7 @@
           commit();
         });
         search.addEventListener('input', draw);
-        wrap.append(search, allRow, list);
+        wrap.append(clearable(search, draw), allRow, list);
         draw();
       } else {
         const ops = FILTER_OPS[col.filterType];
@@ -2712,17 +2753,20 @@
           return i;
         };
         const in1 = mkIn('Filter…', model && model.value), in2 = mkIn('To…', model && model.value2);
+        let w1 = null, w2 = null;
         const sync = () => {
           const op = sel.value;
-          in1.style.display = op === 'blank' || op === 'notBlank' ? 'none' : '';
-          in2.style.display = op === 'between' ? '' : 'none';
+          w1.style.display = op === 'blank' || op === 'notBlank' ? 'none' : '';
+          w2.style.display = op === 'between' ? '' : 'none';
         };
         const fire = () => { sync(); apply({ type: col.filterType, op: sel.value, value: in1.value, value2: in2.value }); };
         const deb = debounce(fire, 220);
+        w1 = clearable(in1, fire);
+        w2 = clearable(in2, fire);
         sel.addEventListener('change', fire);
         in1.addEventListener('input', deb);
         in2.addEventListener('input', deb);
-        wrap.append(sel, in1, in2);
+        wrap.append(sel, w1, w2);
         sync();
         if (inPopup) setTimeout(() => in1.focus(), 0);
       }
@@ -2889,7 +2933,7 @@
         if (this.o.pagination) this._ensurePager();
         this.page = 0;
       }
-      if (this.quickInput) this.quickInput.value = this.quickFilter;
+      if (this.quickInput) { this.quickInput.value = this.quickFilter; this.quickInput.dispatchEvent(new Event('change')); }
       this.refresh();
       if (s.pagination) this.emit('paginationChanged', this.getPaginationInfo());
     }
@@ -3206,6 +3250,6 @@
   LatticeGrid.aggregates = AGGS;
   LatticeGrid.sparkline = sparklineSvg;
   LatticeGrid.chartSvg = chartSvg;
-  LatticeGrid.version = '1.3.0';
+  LatticeGrid.version = '1.4.0';
   global.LatticeGrid = LatticeGrid;
 })(typeof window !== 'undefined' ? window : this);

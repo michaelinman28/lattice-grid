@@ -1,5 +1,5 @@
 /*!
- * Lattice Grid v1.4.1
+ * Lattice Grid v1.5.0
  * A dependency-free JavaScript data grid written from scratch.
  * MIT License.
  *
@@ -382,6 +382,9 @@
     return s + '</svg>';
   }
 
+  // wrapped cells: line height, vertical padding, and horizontal padding (cell padding + a little slack)
+  const WRAP_LINE = 18, WRAP_VPAD = 7, WRAP_HPAD = 22;
+
   const FUNNEL_SVG = '<svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M1 2h14l-5.5 6.5V14l-3-1.5V8.5z"/></svg>';
 
   const FILTER_OPS = {
@@ -435,6 +438,7 @@
     columnMenu: true,
     columnMove: true,
     readOnly: false,
+    wrapText: false, // wrap long text in every plain-text column (columns can override with wrap: true/false)
   };
 
   /* =====================================================================
@@ -517,6 +521,7 @@
           groupHeader: groupHeader || null,
           groupable: d.groupable !== false,
           pivotable: d.pivotable !== false,
+          wrap: d.wrap == null ? null : !!d.wrap, // null = follow the grid's wrapText option
         };
         if (d.sort) this.sorts.push({ id, dir: d.sort });
         this.cols.push(col);
@@ -583,6 +588,7 @@
       this.canvas.style.width = x + 'px';
       const gi = vis.indexOf(this._groupCol);
       this._mdCol = gi >= 0 ? gi : vis.findIndex((c) => !this._isUtil(c));
+      if (this.display) this._computeOffsets();
     }
 
     /* ---------------- values ---------------- */
@@ -712,6 +718,7 @@
       this._uvCache.clear();
       if (opts && opts.refresh) { this.refresh({ side: false }); return; }
       this._refreshAggregates();
+      if (this._hasWrap) { for (const p of partials) this._hFix.delete(String(this.o.rowId(p))); this._computeOffsets(); }
       this._renderRows();
       this._renderFooter();
       this._renderStatus();
@@ -1009,15 +1016,122 @@
       } else {
         this.display = out;
       }
-      const offs = new Float64Array(this.display.length + 1);
-      let y = 0;
-      for (let i = 0; i < this.display.length; i++) {
-        offs[i] = y;
-        y += this.display[i].kind === 'detail' ? this.o.detailHeight : this.o.rowHeight;
+      this._computeOffsets();
+    }
+
+    /* ---------------- row heights & text wrapping ---------------- */
+    _isWrap(col) {
+      if (!col || col.special || col.generated || !col.def || col.def.sparkline) return false;
+      if (col.wrap != null) return col.wrap;
+      return !!this.o.wrapText && !col.def.render;
+    }
+    /**
+     * Works out every displayed row's top position. Rows are rowHeight tall unless a wrapped
+     * cell needs more lines; those heights are estimated by measuring the text with a canvas
+     * (fast, no DOM), then corrected after rendering if the browser wrapped differently.
+     */
+    _computeOffsets() {
+      const o = this.o, disp = this.display;
+      const wrapCols = (this.visible || []).filter((c) => this._isWrap(c) && c.w);
+      this._hasWrap = wrapCols.length > 0;
+      const sig = wrapCols.map((c) => c.id + ':' + c.w).join(',');
+      if (sig !== this._wrapSig || !this._hFix) { this._wrapSig = sig; this._hFix = new Map(); }
+      if (this._hasWrap) {
+        const ctx = this._measureCtx();
+        const cs = getComputedStyle(this.rootEl);
+        ctx.font = cs.fontSize + ' ' + cs.fontFamily;
+        if (this._lineFont !== ctx.font) { this._lineFont = ctx.font; this._lineCache = new Map(); }
       }
-      offs[this.display.length] = y;
+      const offs = new Float64Array(disp.length + 1);
+      let y = 0;
+      for (let i = 0; i < disp.length; i++) {
+        const e = disp[i];
+        offs[i] = y;
+        let h = e.kind === 'detail' ? o.detailHeight : o.rowHeight;
+        if (this._hasWrap && e.kind !== 'detail') h = Math.max(h, this._wrapHeight(e, wrapCols));
+        y += h;
+      }
+      offs[disp.length] = y;
       this.offsets = offs;
       this.totalHeight = y;
+    }
+    _measureCtx() {
+      if (!this._mctx) this._mctx = document.createElement('canvas').getContext('2d');
+      return this._mctx;
+    }
+    _wrapHeight(e, cols) {
+      let lines = 1;
+      for (const c of cols) {
+        const t = this._cellText(c, e);
+        if (!t) continue;
+        let n = this._countLines(t, c.w - WRAP_HPAD);
+        if (c.def.maxLines) n = Math.min(n, c.def.maxLines);
+        if (n > lines) lines = n;
+      }
+      let h = lines > 1 ? lines * WRAP_LINE + WRAP_VPAD * 2 + 1 : 0;
+      const fix = this._hFix.get(e.node.id);
+      if (fix && fix > h) h = fix;
+      return h;
+    }
+    /** Number of lines `text` takes when word-wrapped to `width` pixels (long words break). */
+    _countLines(text, width) {
+      width = Math.max(10, width);
+      const key = width + '|' + text;
+      const hit = this._lineCache.get(key);
+      if (hit) return hit;
+      const ctx = this._mctx;
+      const space = ctx.measureText(' ').width;
+      let lines = 0;
+      for (const para of String(text).split('\n')) {
+        lines++;
+        let cur = 0;
+        for (const word of para.split(/\s+/)) {
+          if (!word) continue;
+          let w = ctx.measureText(word).width;
+          if (cur > 0 && cur + space + w <= width) { cur += space + w; continue; }
+          if (cur > 0) lines++;
+          if (w > width) { const extra = Math.ceil(w / width) - 1; lines += extra; w -= extra * width; }
+          cur = w;
+        }
+      }
+      if (this._lineCache.size > 200000) this._lineCache.clear();
+      this._lineCache.set(key, lines);
+      return lines;
+    }
+    /** After rendering, grow any row whose wrapped text needs more room than estimated. */
+    _fixWrapHeights() {
+      if (!this._hasWrap || this._fixingWrap) return;
+      let changed = false;
+      for (const row of this.bodyEl.children) {
+        const r = +row.dataset.r;
+        const e = this.display[r];
+        if (!e || e.kind === 'detail') continue;
+        const cur = this.offsets[r + 1] - this.offsets[r];
+        let need = 0;
+        row.querySelectorAll('.lg-cell.lg-wrap > .lg-txt:not(.lg-clamp)').forEach((t) => { need = Math.max(need, t.scrollHeight + 1); });
+        if (need > cur + 0.5) { this._hFix.set(e.node.id, need); changed = true; }
+      }
+      if (changed) {
+        this._computeOffsets();
+        this._fixingWrap = true;
+        this._rendered = null;
+        this._renderRows();
+        this._fixingWrap = false;
+      }
+    }
+    /** Turn wrapping on/off for one column (null = follow the grid-wide wrapText option). */
+    setColumnWrap(id, on) {
+      const c = this.colMap.get(id);
+      if (!c) return;
+      c.wrap = on == null ? null : !!on;
+      this._wrapSig = null;
+      this._afterModelChange();
+    }
+    /** Turn wrapping on/off for every plain-text column that has no wrap setting of its own. */
+    setWrapText(on) {
+      this.o.wrapText = !!on;
+      this._wrapSig = null;
+      this._afterModelChange();
     }
     _rowAtY(y) {
       const offs = this.offsets;
@@ -1361,6 +1475,7 @@
       for (let r = first; r <= last; r++) frag.appendChild(this._renderRow(r));
       body.replaceChildren(frag);
       this._rendered = [first, last];
+      if (this._hasWrap) this._fixWrapHeights();
     }
 
     _renderRow(r) {
@@ -1497,6 +1612,10 @@
       const val = this._cellValue(col, n);
       const isAgg = total || e.kind === 'group';
       const span = el('span', 'lg-txt');
+      if (this._isWrap(col)) {
+        d.classList.add('lg-wrap');
+        if (col.def.maxLines) { span.classList.add('lg-clamp'); span.style.webkitLineClamp = String(col.def.maxLines); }
+      }
       let done = false;
       if (!isAgg && col.def.render) {
         const res = col.def.render({ value: val, data: n.data, node: n, grid: this, column: col.id, text: this._cellText(col, e) });
@@ -2240,6 +2359,7 @@
       }
       this._uvCache.clear();
       this._refreshAggregates();
+      if (this._hasWrap) { for (const a of applied) this._hFix.delete(a.node.id); this._computeOffsets(); }
       this._renderRows();
       this._renderFooter();
       this._renderStatus();
@@ -2904,7 +3024,7 @@
     /* ---------------- state ---------------- */
     getState() {
       return {
-        columns: this.cols.map((c) => ({ id: c.id, width: c.width, flex: c.flex, hidden: c.hidden, pinned: c.pinned, agg: typeof c.agg === 'string' ? c.agg : null })),
+        columns: this.cols.map((c) => ({ id: c.id, width: c.width, flex: c.flex, hidden: c.hidden, pinned: c.pinned, agg: typeof c.agg === 'string' ? c.agg : null, wrap: c.wrap })),
         groupColumn: { width: this._groupCol.width, pinned: this._groupCol.pinned },
         sorts: this.sorts.map((s) => Object.assign({}, s)),
         filters: this.getFilterModel(),
@@ -2925,6 +3045,7 @@
           if (!c) return;
           c.width = cs.width; c.flex = cs.flex; c.hidden = !!cs.hidden; c.pinned = cs.pinned || null;
           c.agg = cs.agg || (typeof c.agg === 'function' ? c.agg : null);
+          if (cs.wrap !== undefined) c.wrap = cs.wrap;
         });
       }
       if (s.groupColumn) { this._groupCol.width = s.groupColumn.width; this._groupCol.pinned = s.groupColumn.pinned; }
@@ -3257,6 +3378,6 @@
   LatticeGrid.aggregates = AGGS;
   LatticeGrid.sparkline = sparklineSvg;
   LatticeGrid.chartSvg = chartSvg;
-  LatticeGrid.version = '1.4.1';
+  LatticeGrid.version = '1.5.0';
   global.LatticeGrid = LatticeGrid;
 })(typeof window !== 'undefined' ? window : this);

@@ -104,6 +104,7 @@ Sorting, filtering and resizing are on for every column. Switch them off per col
 | `treeData: true` | Show a hierarchy (with `getTreePath`) |
 | `masterDetail: true` | Expandable detail panel under each row (with `detailRenderer`) |
 | `readOnly: true` | Turns off all editing, even for columns marked `editable` |
+| `wrapText: true` | Wrap long text onto several lines (rows grow to fit) in every plain-text column. Or set `wrap: true` on single columns |
 
 **Per column.** These are set in each column definition. See [Defining columns](#defining-columns).
 They include `editable`, `filter`, `aggregate`, `sparkline`, `pinned`, `render`, `format` and `validate`.
@@ -222,6 +223,8 @@ columns: [
 | `groupable` / `pivotable` | `true` | Allow this column to be used for grouping / pivoting |
 | `groupIndex` / `pivotIndex` | – | Group or pivot by this column at start-up (0 = first level) |
 | `sparkline` | – | `{ type: 'line' \| 'area' \| 'bar', color }` for cells whose value is an array of numbers |
+| `wrap` | grid's `wrapText` | `true` wraps long text onto several lines and makes the row taller to fit. `false` keeps it on one line with "…" |
+| `maxLines` | – | With wrapping on, show at most this many lines and end with "…" |
 | `exportFormatted` | `false` | Export the formatted text instead of the raw value |
 
 ---
@@ -253,6 +256,7 @@ columns: [
 | `fillHandle` | `true` | Drag-to-fill handle |
 | `readOnly` | `false` | Turns off all editing |
 | `flashChanges` | `true` | Highlight changed cells |
+| `wrapText` | `false` | Wrap text in all plain-text columns. See [Wrapping text](#wrapping-text) |
 | `rowReorder` | `false` | Row drag handles. See [Row reordering](#row-reordering) |
 | **Data shaping** | | |
 | `groupBy` | `[]` | Column ids to group by, in order |
@@ -384,6 +388,26 @@ Rows get a ▶ that opens a full-width panel. You decide what goes in it:
 }
 ```
 
+### Wrapping text
+
+By default a value that doesn't fit its cell is cut off with "…". To wrap it onto more lines instead:
+
+```js
+{ field: 'notes', header: 'Notes', width: 260, wrap: true }               // one column
+{ field: 'notes', header: 'Notes', wrap: true, maxLines: 3 }              // wrap, but at most 3 lines then "…"
+new LatticeGrid('#grid', { columns, rows, wrapText: true })               // every plain-text column
+{ field: 'code', header: 'Code', wrap: false }                            // opt one column out of wrapText
+```
+
+Rows grow to fit their tallest wrapped cell, and the other cells in the row stay vertically centred.
+Resizing a column re-flows the text, and editing or live updates resize the affected rows. Long words with
+no spaces (like URLs) break so they never overflow. Heights are worked out quickly without touching the
+page, then checked against what the browser actually drew, so large tables still scroll smoothly.
+
+Switch it at runtime with `grid.setColumnWrap('notes', true | false | null)` (where `null` means "follow
+`wrapText`") or `grid.setWrapText(true | false)`. Columns with a custom `render` or a `sparkline` don't wrap
+under `wrapText` unless you set `wrap: true` on them.
+
 ### Sparklines
 
 For a column whose value is an array of numbers, add `sparkline: { type: 'line' }`. Other types are `'area'`
@@ -423,7 +447,7 @@ choice is included in `getState()` / `setState()`.
 ### Saving and restoring the layout
 
 ```js
-const state = grid.getState();                        // columns, widths, order, sort, filters, grouping, pivot, paging
+const state = grid.getState();                        // columns, widths, order, wrapping, sort, filters, grouping, pivot, paging
 localStorage.setItem('myGrid', JSON.stringify(state));
 grid.setState(JSON.parse(localStorage.getItem('myGrid')));
 ```
@@ -445,6 +469,7 @@ changes.
 | Find | `setFind(text)`, `findNext(1 \| -1)` |
 | Grouping / pivot | `groupBy(ids)`, `pivotBy(ids)`, `setPivotMode(bool)`, `setAggregate(colId, fn)`, `expandAll()`, `collapseAll()`, `toggleExpand(node)`, `toggleDetail(node)` |
 | Selection | `selectAll()`, `deselectAll()`, `getSelectedRows()` |
+| Wrapping | `setColumnWrap(id, on)`, `setWrapText(on)` |
 | Rows | `moveRows(ids, toIndex)`, `canReorderRows()`, `getReorderBlockReason()` |
 | Paging | `setPagination(on, pageSize)`, `setPageSize(n)`, `setPage(n)`, `getPaginationInfo()` |
 | Columns | `moveColumn(id, targetId, after)`, `setColumnVisible(id, bool)`, `pinColumn(id, 'left' \| 'right' \| null)`, `autoSizeColumn(id)`, `autoSizeAll()`, `resetColumns()` |
@@ -526,7 +551,7 @@ python3 -m http.server 8000      # any static web server works
 The demo has four tabs:
 
 - **Simple**: a pared-down grid with only movable columns, column filters, sorting, row drag-and-drop and a
-  show/hide columns picker, plus a Paging on/off button. Its configuration is shown on the page.
+  show/hide columns picker, a wrapped Notes column with a Wrap text on/off button, and a Paging on/off button. Its configuration is shown on the page.
 - **Sales analytics**: everything turned on, up to 100,000 rows.
 - **Tree data**: an org chart.
 - **Master / detail**: customers with nested order grids. The grids are also exposed as

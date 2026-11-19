@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lattice Grid Demo</title>
-  <link rel="stylesheet" href="lattice-grid.css?v=1.4.1">
+  <link rel="stylesheet" href="lattice-grid.css?v=1.5.0">
   <style>
     :root {
       --page-bg: #eef1f5; --page-fg: #1f2430; --page-muted: #5b6474; --card-bg: #ffffff; --card-border: #d9dee5; --accent: #2563eb;
@@ -95,6 +95,7 @@
         <label class="hint" id="simplePageSizeWrap" hidden>Rows per page
           <select id="simplePageSize"><option>10</option><option selected>25</option><option>50</option><option>100</option></select>
         </label>
+        <button id="simpleWrap" type="button" class="on" aria-pressed="true">Wrap text: On</button>
         <button id="simpleClear" type="button">Clear sort &amp; filters</button>
         <button id="simpleReset" type="button">Reset</button>
         <span class="hint" id="simpleHint"></span>
@@ -110,6 +111,7 @@
             <li><b>Filter:</b> type in the boxes under the headers. Number columns accept <kbd>&gt;90000</kbd> or <kbd>2..4</kbd>. Click <b>×</b> (or press <kbd>Esc</kbd>) to clear a box. "All" opens a checkbox list</li>
             <li><b>Reorder rows:</b> drag the <b>⠿</b> handle, or press <kbd>Alt+↑</kbd>/<kbd>Alt+↓</kbd>. This pauses while a sort or filter is active</li>
             <li><b>Choose columns:</b> use the <b>Columns</b> button to show or hide columns</li>
+            <li><b>Wrapping:</b> long Notes wrap onto several lines and the row grows to fit. Toggle it with <b>Wrap text</b>. Resizing the column re-flows the text</li>
             <li><b>Paging:</b> the <b>Paging</b> button switches between one scrolling list and pages, without reloading the grid</li>
           </ul>
         </div>
@@ -127,7 +129,8 @@
   fillHandle: false, readOnly: true,
 });
 // column picker: grid.setColumnVisible(id, true | false)
-// paging on/off: grid.setPagination(true, 25) / grid.setPagination(false)</pre>
+// paging on/off: grid.setPagination(true, 25) / grid.setPagination(false)
+// wrapping: { field: 'notes', wrap: true } in the column, or grid.setColumnWrap('notes', false)</pre>
         </div>
       </div>
     </section>
@@ -203,13 +206,13 @@
     </section>
   </main>
 
-  <script src="lattice-grid.js?v=1.4.1"></script>
+  <script src="lattice-grid.js?v=1.5.0"></script>
   <script>
   (function () {
     'use strict';
     // The demo needs the matching library version. A cached older lattice-grid.js would otherwise
     // break the page, so say so plainly instead of failing silently.
-    const NEEDED = '1.4.1';
+    const NEEDED = '1.5.0';
     if (typeof LatticeGrid === 'undefined' || LatticeGrid.version !== NEEDED) {
       const msg = document.createElement('div');
       msg.setAttribute('role', 'alert');
@@ -529,9 +532,17 @@
           id: i + 1, name: pick(r, first) + ' ' + pick(r, last), department: dept, role: pick(r, depts[dept]), location: pick(r, cities),
           started: new Date(Date.UTC(2014 + Math.floor(r() * 11), Math.floor(r() * 12), 1 + Math.floor(r() * 27))).toISOString().slice(0, 10),
           salary: Math.round((55000 + r() * 110000) / 500) * 500, rating: 1 + Math.floor(r() * 5),
+          notes: NOTE_BITS.filter(() => r() < 0.28).slice(0, 1 + Math.floor(r() * 4)).join(' ') || 'No notes yet.',
         };
       });
     }
+    const NOTE_BITS = [
+      'Leads the quarterly planning review.', 'Mentors two new starters.', 'Prefers async updates over meetings.',
+      'Owns the customer onboarding checklist and keeps it current.', 'On parental leave until the end of next month.',
+      'Certified in accessibility testing.', 'Speaks German and Japanese.', 'Moving to the Berlin office in spring.',
+      'Runs the internal knowledge-sharing sessions every other Thursday afternoon.', 'Part-time: Mondays to Wednesdays.',
+      'Shortlisted for the annual excellence award after a very strong year.', 'Point of contact for vendor contracts.',
+    ];
     const simpleColumns = [
       { field: 'name', header: 'Name', width: 180 },
       { field: 'department', header: 'Department', width: 150, filter: 'set' },
@@ -540,6 +551,7 @@
       { field: 'started', header: 'Start date', type: 'date', width: 140 },
       { field: 'salary', header: 'Salary', type: 'number', width: 130, format: dollars },
       { field: 'rating', header: 'Rating', type: 'number', width: 110, render: (p) => '<span class="stars">' + '★'.repeat(p.value || 0) + '<i>' + '★'.repeat(5 - (p.value || 0)) + '</i></span>' },
+      { field: 'notes', header: 'Notes', width: 260, wrap: true },
       { field: 'id', header: 'Employee #', type: 'number', width: 120, hidden: true },
     ];
     let simple = null;
@@ -608,8 +620,16 @@
       simple.setPagination(!simple.getPaginationInfo().enabled, +document.getElementById('simplePageSize').value);
     });
     document.getElementById('simplePageSize').addEventListener('change', (e) => simple.setPageSize(+e.target.value));
+    document.getElementById('simpleWrap').addEventListener('click', (e) => {
+      const on = e.currentTarget.getAttribute('aria-pressed') !== 'true';
+      simple.setColumnWrap('notes', on);
+      e.currentTarget.setAttribute('aria-pressed', String(on));
+      e.currentTarget.classList.toggle('on', on);
+      e.currentTarget.textContent = 'Wrap text: ' + (on ? 'On' : 'Off');
+    });
     document.getElementById('simpleClear').addEventListener('click', () => { simple.setSort([]); simple.clearFilters(); });
-    document.getElementById('simpleReset').addEventListener('click', () => { togglePicker(false); safely('simpleGrid', createSimple); });
+    document.getElementById('simpleReset').addEventListener('click', () => { togglePicker(false); safely('simpleGrid', createSimple);
+      const w = document.getElementById('simpleWrap'); w.setAttribute('aria-pressed', 'true'); w.classList.add('on'); w.textContent = 'Wrap text: On'; });
 
     // ---------- tabs & theme ----------
     document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {

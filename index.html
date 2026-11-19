@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lattice Grid Demo</title>
+  <link rel="stylesheet" href="lattice-grid.css">
+  <style>
+    :root {
+      --page-bg: #eef1f5; --page-fg: #1f2430; --page-muted: #5b6474; --card-bg: #ffffff; --card-border: #d9dee5; --accent: #2563eb;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) { --page-bg: #0f1115; --page-fg: #e5e7eb; --page-muted: #9aa3b2; --card-bg: #171a20; --card-border: #2b303a; --accent: #5b8def; }
+    }
+    :root[data-theme="dark"] { --page-bg: #0f1115; --page-fg: #e5e7eb; --page-muted: #9aa3b2; --card-bg: #171a20; --card-border: #2b303a; --accent: #5b8def; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--page-bg); color: var(--page-fg); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    header.page { padding: 18px 16px 6px; max-width: 1500px; margin: 0 auto; }
+    header.page h1 { margin: 0; font-size: 22px; }
+    header.page p { margin: 4px 0 0; color: var(--page-muted); }
+    main { max-width: 1500px; margin: 0 auto; padding: 8px 16px 24px; }
+    .tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--card-border); margin-bottom: 10px; }
+    .tabs button { border: 0; background: none; color: var(--page-muted); font: inherit; font-weight: 600; padding: 8px 14px; cursor: pointer; border-bottom: 2px solid transparent; }
+    .tabs button.on { color: var(--accent); border-bottom-color: var(--accent); }
+    .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+    .controls label { display: inline-flex; gap: 6px; align-items: center; color: var(--page-muted); }
+    .controls select, .controls button { font: inherit; height: 32px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--card-border); background: var(--card-bg); color: var(--page-fg); cursor: pointer; }
+    .controls button:hover { border-color: var(--accent); color: var(--accent); }
+    .controls button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .sep { width: 1px; height: 22px; background: var(--card-border); }
+    .grid-host { height: min(72vh, 760px); min-height: 420px; }
+    .panel { display: none; }
+    .panel.on { display: block; }
+    .layout { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    .info { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: 14px; }
+    .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 12px 14px; }
+    .card h3 { margin: 0 0 6px; font-size: 14px; }
+    .card ul { margin: 0; padding-left: 18px; color: var(--page-muted); font-size: 13px; }
+    .card kbd { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--page-bg); border: 1px solid var(--card-border); border-radius: 4px; padding: 0 4px; color: var(--page-fg); }
+    #log { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--page-muted); max-height: 140px; overflow: auto; white-space: pre-wrap; margin: 0; }
+    /* cell renderers used by the demo */
+    .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; line-height: 18px; }
+    .badge.Delivered { background: #dcfce7; color: #166534; }
+    .badge.Shipped { background: #dbeafe; color: #1e40af; }
+    .badge.Processing { background: #fef9c3; color: #854d0e; }
+    .badge.Cancelled { background: #fee2e2; color: #991b1b; }
+    .badge.Returned { background: #ede9fe; color: #5b21b6; }
+    .stars { color: #f59e0b; letter-spacing: 1px; }
+    .stars i { color: #cbd5e1; font-style: normal; }
+    .neg { color: #dc2626; }
+    .pos { color: #15803d; }
+    .row-cancelled { opacity: 0.6; }
+    .avatar { display: inline-flex; width: 22px; height: 22px; border-radius: 50%; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; margin-right: 6px; flex: none; }
+    .who { display: inline-flex; align-items: center; min-width: 0; }
+  </style>
+</head>
+<body>
+  <header class="page">
+    <h1>Lattice Grid</h1>
+    <p>A dependency-free JavaScript data grid built from scratch, with grouping, pivoting, tree data, master/detail, range selection, charts, Excel export and more.</p>
+  </header>
+  <main>
+    <nav class="tabs" role="tablist">
+      <button class="on" data-tab="sales" role="tab">Sales analytics</button>
+      <button data-tab="tree" role="tab">Tree data</button>
+      <button data-tab="detail" role="tab">Master / detail</button>
+    </nav>
+
+    <section class="panel on" id="panel-sales">
+      <div class="controls">
+        <label>Rows
+          <select id="rowCount">
+            <option value="1000">1,000</option>
+            <option value="10000" selected>10,000</option>
+            <option value="100000">100,000</option>
+          </select>
+        </label>
+        <div class="sep"></div>
+        <button data-preset="flat">Flat</button>
+        <button data-preset="region" class="on">Group: Region</button>
+        <button data-preset="deep">Group: Region › Country</button>
+        <button data-preset="pivot">Pivot: Region × Category</button>
+        <div class="sep"></div>
+        <button id="live">▶ Live updates</button>
+        <label><input type="checkbox" id="paging"> Pagination</label>
+        <button id="save">Save state</button>
+        <button id="restore">Restore state</button>
+        <div class="sep"></div>
+        <button id="theme">◐ Theme</button>
+      </div>
+      <div class="grid-host" id="salesGrid"></div>
+      <div class="info">
+        <div class="card">
+          <h3>Try this</h3>
+          <ul>
+            <li>Drag a column header into the group bar, or into the side panel's zones</li>
+            <li>Drag across cells to select a range. The status bar shows its sum, avg, min and max</li>
+            <li>Right-click a range and choose <b>Chart range</b></li>
+            <li>Drag the small blue square (the fill handle) down to extend a series</li>
+            <li>Double-click Qty, Price, Status, Rating or Notes to edit</li>
+            <li>Number floating filters accept <kbd>&gt;100</kbd>, <kbd>&lt;=5</kbd>, <kbd>10..20</kbd></li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Keyboard</h3>
+          <ul>
+            <li><kbd>↑↓←→</kbd> move · <kbd>Shift</kbd>+arrows extend range</li>
+            <li><kbd>Enter</kbd>/<kbd>F2</kbd> edit · <kbd>Esc</kbd> cancel · <kbd>Tab</kbd> next cell</li>
+            <li><kbd>Ctrl+C</kbd> / <kbd>Ctrl+V</kbd> copy / paste (works with Excel)</li>
+            <li><kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd> undo / redo · <kbd>Delete</kbd> clear</li>
+            <li><kbd>Space</kbd> select row · <kbd>Ctrl+A</kbd> select all cells · <kbd>Ctrl+F</kbd> find</li>
+            <li><kbd>Shift</kbd>+click a header for multi-column sort</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Event log</h3>
+          <pre id="log">Events from the grid appear here.</pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-tree">
+      <div class="controls">
+        <button id="treeExpand">Expand all</button>
+        <button id="treeCollapse">Collapse all</button>
+        <span style="color:var(--page-muted)">An org chart built from <code>getTreePath</code>. Salary and headcount roll up the hierarchy.</span>
+      </div>
+      <div class="grid-host" id="treeGrid"></div>
+    </section>
+
+    <section class="panel" id="panel-detail">
+      <div class="controls">
+        <span style="color:var(--page-muted)">Click ▶ on a customer to open a nested grid of their orders. The detail grids are full Lattice Grid instances.</span>
+      </div>
+      <div class="grid-host" id="detailGrid"></div>
+    </section>
+  </main>
+
+  <script src="lattice-grid.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    // ---------- deterministic fake data ----------
+    function rng(seed) { return function () { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+    const pick = (r, a) => a[Math.floor(r() * a.length)];
+    const GEO = {
+      'North America': ['United States', 'Canada', 'Mexico'],
+      'Europe': ['Germany', 'France', 'United Kingdom', 'Spain', 'Italy', 'Sweden'],
+      'Asia Pacific': ['Japan', 'Australia', 'Singapore', 'India', 'South Korea'],
+      'Latin America': ['Brazil', 'Argentina', 'Chile', 'Colombia'],
+      'Middle East & Africa': ['UAE', 'South Africa', 'Egypt', 'Kenya'],
+    };
+    const PRODUCTS = {
+      Hardware: [['Laptop Pro 14', 1499], ['Desktop Tower', 1099], ['Monitor 27"', 329], ['Dock Station', 189], ['Keyboard', 79]],
+      Software: [['Office Suite', 249], ['Design Studio', 599], ['Security Plus', 89], ['Cloud Backup', 120]],
+      Services: [['Onboarding', 900], ['Support Plan', 450], ['Consulting Day', 1250]],
+      Accessories: [['Headset', 129], ['Webcam HD', 99], ['Mouse', 39], ['Laptop Bag', 69]],
+    };
+    const REPS = ['Avery Chen', 'Jordan Patel', 'Sam Okafor', 'Riley Novak', 'Casey Moreau', 'Morgan Silva', 'Taylor Brooks', 'Jamie Lindqvist', 'Quinn Adeyemi', 'Drew Tanaka', 'Alex Romero', 'Robin Kowalski'];
+    const STATUSES = ['Delivered', 'Delivered', 'Delivered', 'Shipped', 'Shipped', 'Processing', 'Cancelled', 'Returned'];
+    const NOTES = ['', '', '', 'Rush order', 'Gift wrap', 'Call before delivery', 'Partial shipment', 'Net-30 terms', 'Repeat customer'];
+    function makeSales(n) {
+      const r = rng(42);
+      const regions = Object.keys(GEO), cats = Object.keys(PRODUCTS);
+      const start = Date.UTC(2025, 0, 1), span = 640 * 864e5;
+      const rows = new Array(n);
+      for (let i = 0; i < n; i++) {
+        const region = pick(r, regions), category = pick(r, cats), prod = pick(r, PRODUCTS[category]);
+        const price = Math.round(prod[1] * (0.85 + r() * 0.3) * 100) / 100;
+        const trend = []; let v = 20 + r() * 60;
+        for (let k = 0; k < 12; k++) { v = Math.max(2, v + (r() - 0.48) * 18); trend.push(Math.round(v)); }
+        rows[i] = {
+          id: 100001 + i, region, country: pick(r, GEO[region]), category, product: prod[0], rep: pick(r, REPS),
+          date: new Date(start + Math.floor(r() * span)).toISOString().slice(0, 10),
+          qty: 1 + Math.floor(r() * r() * 40), price, cost: Math.round(price * (0.45 + r() * 0.5) * 100) / 100,
+          status: pick(r, STATUSES), rating: 1 + Math.floor(r() * 5), priority: r() < 0.18, trend, notes: pick(r, NOTES),
+        };
+      }
+      return rows;
+    }
+    const moneyFmt = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const wholeFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+    const money = (v) => (v == null || isNaN(v) ? '' : '$' + moneyFmt.format(v));
+    const dollars = (v) => (v == null || isNaN(v) ? '' : '$' + wholeFmt.format(v));
+    const pct = (v) => (v == null || isNaN(v) ? '' : (v * 100).toFixed(1) + '%');
+    const COLORS = ['#4e79a7', '#f28e2b', '#59a14f', '#e15759', '#76b7b2', '#b07aa1', '#9c755f', '#edc948'];
+    const initials = (name) => String(name).split(' ').map((p) => p[0]).join('').slice(0, 2);
+    const colorFor = (s) => { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) | 0; return COLORS[Math.abs(h) % COLORS.length]; };
+    const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    let theme = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    const logEl = document.getElementById('log');
+    let logLines = [];
+    function log(msg) {
+      logLines.unshift(new Date().toLocaleTimeString() + '  ' + msg);
+      logLines = logLines.slice(0, 40);
+      logEl.textContent = logLines.join('\n');
+    }
+
+    // ---------- Sales grid ----------
+    const salesColumns = [
+      { field: 'id', header: 'Order #', type: 'number', width: 100, pinned: 'left', format: (v) => (v == null ? '' : '#' + v), groupable: false, filter: 'number' },
+      { header: 'Market', children: [
+        { field: 'region', header: 'Region', width: 160, filter: 'set' },
+        { field: 'country', header: 'Country', width: 140, filter: 'set' },
+      ] },
+      { header: 'Product', children: [
+        { field: 'category', header: 'Category', width: 128, filter: 'set' },
+        { field: 'product', header: 'Product', width: 150 },
+      ] },
+      { header: 'Figures', children: [
+        { field: 'qty', header: 'Qty', type: 'number', width: 84, editable: true, aggregate: 'sum',
+          validate: (v) => (Number.isInteger(v) && v >= 0 ? true : 'Qty must be a whole number ≥ 0') },
+        { field: 'price', header: 'Unit price', type: 'number', width: 116, editable: true, aggregate: 'avg', format: money,
+          validate: (v) => (v > 0 ? true : 'Price must be greater than 0') },
+        { id: 'revenue', header: 'Revenue', type: 'number', width: 136, aggregate: 'sum', format: money,
+          getValue: (d) => Math.round(d.qty * d.price * 100) / 100 },
+        { id: 'margin', header: 'Margin', type: 'number', width: 96, aggregate: 'avg', format: pct,
+          getValue: (d) => (d.price ? (d.price - d.cost) / d.price : null),
+          cellClass: (p) => (p.value < 0.2 ? 'neg' : p.value > 0.45 ? 'pos' : '') },
+        { field: 'trend', header: '12-wk trend', width: 130, sortable: false, filter: false, groupable: false, pivotable: false, sparkline: { type: 'area' } },
+      ] },
+      { header: 'Details', children: [
+        { field: 'status', header: 'Status', width: 120, filter: 'set', editable: true, editor: 'select',
+          editorOptions: ['Delivered', 'Shipped', 'Processing', 'Cancelled', 'Returned'],
+          render: (p) => (p.value ? '<span class="badge ' + escapeHtml(p.value) + '">' + escapeHtml(p.value) + '</span>' : '') },
+        { field: 'date', header: 'Date', type: 'date', width: 124, editable: true },
+        { field: 'rep', header: 'Sales rep', width: 168, filter: 'set',
+          render: (p) => '<span class="who"><span class="avatar" style="background:' + colorFor(p.value) + '">' + escapeHtml(initials(p.value)) + '</span>' + escapeHtml(p.value) + '</span>' },
+        { field: 'rating', header: 'Rating', type: 'number', width: 108, editable: true, editor: 'select', editorOptions: [1, 2, 3, 4, 5],
+          parse: (s) => Number(s), render: (p) => '<span class="stars">' + '★'.repeat(p.value || 0) + '<i>' + '★'.repeat(5 - (p.value || 0)) + '</i></span>' },
+        { field: 'priority', header: 'Priority', type: 'boolean', width: 92, editable: true },
+        { field: 'notes', header: 'Notes', width: 190, editable: true, editor: 'textarea', tooltip: true },
+      ] },
+    ];
+
+    const PRESETS = {
+      flat: { groupBy: [], pivotMode: false, pivotBy: [] },
+      region: { groupBy: ['region'], pivotMode: false, pivotBy: [] },
+      deep: { groupBy: ['region', 'country'], pivotMode: false, pivotBy: [] },
+      pivot: { groupBy: ['region'], pivotMode: true, pivotBy: ['category'] },
+    };
+    let sales = null, salesRows = makeSales(10000), liveTimer = 0, savedState = null;
+
+    function createSales() {
+      const prev = sales ? sales.getState() : null;
+      if (sales) sales.destroy();
+      sales = new LatticeGrid('#salesGrid', {
+        columns: salesColumns,
+        rows: salesRows,
+        rowId: (d) => d.id,
+        selection: 'multiple',
+        groupBy: ['region'],
+        sideBar: window.innerWidth > 1100 ? 'open' : true,
+        totalsRow: true,
+        pagination: document.getElementById('paging').checked,
+        pageSize: 100,
+        theme,
+        exportFileName: 'sales',
+        rowClass: (d) => (d.status === 'Cancelled' ? 'row-cancelled' : ''),
+      });
+      if (prev) sales.setState(prev);
+      sales.on('cellValueChanged', (e) => log('cellValueChanged  ' + e.column + ': ' + JSON.stringify(e.oldValue) + ' → ' + JSON.stringify(e.newValue)));
+      sales.on('selectionChanged', (rows) => log('selectionChanged  ' + rows.length + ' row(s) selected'));
+      sales.on('sortChanged', (s) => log('sortChanged  ' + (s.map((x) => x.id + ' ' + x.dir).join(', ') || '(none)')));
+      sales.on('filterChanged', (m) => log('filterChanged  ' + (Object.keys(m).join(', ') || '(none)')));
+      sales.on('columnMoved', (e) => log('columnMoved  ' + e.column));
+      window.salesGrid = sales; // handy for poking at the API from the console
+    }
+    createSales();
+
+    function applyPreset(name) {
+      const p = PRESETS[name];
+      const st = sales.getState();
+      st.groupBy = p.groupBy; st.pivotMode = p.pivotMode; st.pivotBy = p.pivotBy;
+      if (name === 'pivot') st.columns.forEach((c) => { if (c.id === 'revenue') c.agg = 'sum'; if (c.id === 'qty') c.agg = 'sum'; });
+      sales.setState(st);
+      document.querySelectorAll('[data-preset]').forEach((b) => b.classList.toggle('on', b.dataset.preset === name));
+    }
+    document.querySelectorAll('[data-preset]').forEach((b) => b.addEventListener('click', () => applyPreset(b.dataset.preset)));
+
+    document.getElementById('rowCount').addEventListener('change', (e) => {
+      salesRows = makeSales(+e.target.value);
+      const t0 = performance.now();
+      sales.setRows(salesRows);
+      log('setRows  ' + salesRows.length.toLocaleString() + ' rows in ' + Math.round(performance.now() - t0) + ' ms');
+    });
+    document.getElementById('paging').addEventListener('change', createSales);
+    document.getElementById('save').addEventListener('click', () => {
+      savedState = sales.getState();
+      try { localStorage.setItem('lattice-demo-state', JSON.stringify(savedState)); } catch (e) { /* storage unavailable */ }
+      log('state saved (columns, sort, filters, grouping, pivot)');
+    });
+    document.getElementById('restore').addEventListener('click', () => {
+      let s = savedState;
+      if (!s) { try { s = JSON.parse(localStorage.getItem('lattice-demo-state')); } catch (e) { s = null; } }
+      if (s) { sales.setState(s); log('state restored'); } else log('no saved state yet');
+    });
+    const liveBtn = document.getElementById('live');
+    liveBtn.addEventListener('click', () => {
+      if (liveTimer) { clearInterval(liveTimer); liveTimer = 0; liveBtn.textContent = '▶ Live updates'; liveBtn.classList.remove('on'); return; }
+      liveBtn.textContent = '■ Stop updates'; liveBtn.classList.add('on');
+      const r = rng(Date.now() & 0xffff);
+      liveTimer = setInterval(() => {
+        const updates = [];
+        // update a mix of random rows and rows near the top so the flashing is visible
+        for (let i = 0; i < 40; i++) {
+          const row = salesRows[i < 15 ? i : Math.floor(r() * salesRows.length)];
+          const price = Math.max(1, Math.round(row.price * (1 + (r() - 0.5) * 0.06) * 100) / 100);
+          const trend = row.trend.slice(1).concat(Math.max(2, Math.round(row.trend[11] + (r() - 0.48) * 14)));
+          updates.push({ id: row.id, price, trend, qty: r() < 0.3 ? Math.max(0, row.qty + (r() < 0.5 ? -1 : 1)) : row.qty });
+        }
+        sales.updateRows(updates);
+      }, 700);
+    });
+
+    // ---------- Tree data grid ----------
+    function makeOrg() {
+      const r = rng(7);
+      const first = ['Ada', 'Bo', 'Cy', 'Dee', 'Eli', 'Fay', 'Gus', 'Hal', 'Ivy', 'Jo', 'Kai', 'Lux', 'Mo', 'Nia', 'Oz', 'Pia', 'Rae', 'Sol', 'Tia', 'Uma', 'Vic', 'Wes', 'Xan', 'Yui', 'Zed'];
+      const last = ['Hart', 'Ng', 'Ito', 'Vale', 'Roy', 'Diaz', 'Berg', 'Kerr', 'Moss', 'Shah', 'Lund', 'Park', 'Reyes', 'Quist'];
+      const nm = () => pick(r, first) + ' ' + pick(r, last);
+      const cities = ['London', 'New York', 'Berlin', 'Tokyo', 'Toronto', 'Sydney', 'Remote'];
+      const rows = [];
+      const add = (path, title, dept, salary) => rows.push({ path, name: path[path.length - 1], title, dept, location: pick(r, cities), salary, start: new Date(Date.UTC(2012 + Math.floor(r() * 13), Math.floor(r() * 12), 1 + Math.floor(r() * 27))).toISOString().slice(0, 10), headcount: 1 });
+      const ceo = nm() + ' (CEO)';
+      add([ceo], 'Chief Executive Officer', 'Executive', 410000);
+      ['Engineering', 'Sales', 'Marketing', 'Operations', 'Finance'].forEach((dept) => {
+        const vp = nm();
+        add([ceo, vp], 'VP ' + dept, dept, 240000 + Math.round(r() * 60000));
+        const mgrs = 2 + Math.floor(r() * 3);
+        for (let m = 0; m < mgrs; m++) {
+          const mg = nm();
+          add([ceo, vp, mg], dept + ' Manager', dept, 150000 + Math.round(r() * 40000));
+          const ics = 3 + Math.floor(r() * 7);
+          for (let k = 0; k < ics; k++) add([ceo, vp, mg, nm() + ' #' + (rows.length + 1)], pick(r, ['Senior ', '', 'Associate ']) + (dept === 'Engineering' ? 'Engineer' : dept === 'Sales' ? 'Account Exec' : 'Specialist'), dept, 70000 + Math.round(r() * 90000));
+        }
+      });
+      return rows;
+    }
+    let tree = null;
+    function createTree() {
+      if (tree) return;
+      tree = new LatticeGrid('#treeGrid', {
+        treeData: true,
+        getTreePath: (d) => d.path,
+        treeColumnHeader: 'Employee',
+        groupColumnWidth: 300,
+        groupDefaultExpanded: 2,
+        rows: makeOrg(),
+        selection: 'multiple',
+        theme,
+        totalsRow: true,
+        exportFileName: 'org-chart',
+        columns: [
+          { field: 'title', header: 'Title', width: 210, editable: true },
+          { field: 'dept', header: 'Department', width: 140, filter: 'set' },
+          { field: 'location', header: 'Location', width: 130, filter: 'set', editable: true, editor: 'select', editorOptions: ['London', 'New York', 'Berlin', 'Tokyo', 'Toronto', 'Sydney', 'Remote'] },
+          { field: 'start', header: 'Start date', type: 'date', width: 130 },
+          { field: 'headcount', header: 'Headcount', type: 'number', width: 120, aggregate: 'sum' },
+          { field: 'salary', header: 'Salary', type: 'number', width: 140, aggregate: 'sum', format: dollars, editable: true },
+        ],
+      });
+    }
+    document.getElementById('treeExpand').addEventListener('click', () => tree && tree.expandAll());
+    document.getElementById('treeCollapse').addEventListener('click', () => tree && tree.collapseAll());
+
+    // ---------- Master / detail grid ----------
+    function makeCustomers() {
+      const r = rng(99);
+      const names = ['Northwind Labs', 'Blue Harbor Co', 'Quartz Analytics', 'Pinecrest Health', 'Meridian Freight', 'Solstice Media', 'Ironbridge Bank', 'Copperleaf Foods', 'Atlas Robotics', 'Verdant Energy', 'Lumen Schools', 'Harborview Hotels', 'Skyline Aerospace', 'Orchid Retail', 'Granite Insurance', 'Tidewater Logistics', 'Beacon Software', 'Willow Clinics', 'Summit Outdoor', 'Cobalt Telecom', 'Redwood Legal', 'Nimbus Cloud', 'Falcon Motors', 'Juniper Pharma'];
+      return names.map((name, i) => {
+        const orders = [];
+        const n = 3 + Math.floor(r() * 18);
+        for (let k = 0; k < n; k++) {
+          const cat = pick(r, Object.keys(PRODUCTS)), p = pick(r, PRODUCTS[cat]);
+          const qty = 1 + Math.floor(r() * 25);
+          orders.push({ order: 'SO-' + (5000 + i * 40 + k), date: new Date(Date.UTC(2025, Math.floor(r() * 12), 1 + Math.floor(r() * 27))).toISOString().slice(0, 10), product: p[0], category: cat, qty, total: Math.round(qty * p[1] * (0.9 + r() * 0.2)), status: pick(r, STATUSES) });
+        }
+        const total = orders.reduce((s, o) => s + o.total, 0);
+        return { id: i + 1, name, industry: pick(r, ['Technology', 'Healthcare', 'Finance', 'Retail', 'Logistics', 'Energy', 'Education']), country: pick(r, ['United States', 'Germany', 'Japan', 'Brazil', 'United Kingdom', 'Canada']), manager: pick(r, REPS), orders, orderCount: orders.length, total, monthly: Array.from({ length: 12 }, () => Math.round(r() * 100)) };
+      });
+    }
+    let detail = null;
+    function createDetail() {
+      if (detail) return;
+      detail = new LatticeGrid('#detailGrid', {
+        rows: makeCustomers(),
+        rowId: (d) => d.id,
+        masterDetail: true,
+        detailHeight: 300,
+        groupPanel: false,
+        theme,
+        exportFileName: 'customers',
+        columns: [
+          { field: 'name', header: 'Customer', width: 230 },
+          { field: 'industry', header: 'Industry', width: 140, filter: 'set' },
+          { field: 'country', header: 'Country', width: 150, filter: 'set' },
+          { field: 'manager', header: 'Account manager', width: 170 },
+          { field: 'orderCount', header: 'Orders', type: 'number', width: 100, aggregate: 'sum' },
+          { field: 'total', header: 'Lifetime value', type: 'number', width: 150, aggregate: 'sum', format: dollars },
+          { field: 'monthly', header: 'Monthly orders', width: 160, sortable: false, filter: false, sparkline: { type: 'bar' } },
+        ],
+        detailRenderer: (p) => {
+          const host = document.createElement('div');
+          host.style.height = '100%';
+          p.container.appendChild(host);
+          p.container._grid = new LatticeGrid(host, {
+            rows: p.data.orders,
+            toolbar: false, groupPanel: false, statusBar: true, floatingFilters: false, totalsRow: true,
+            theme: p.theme, rowHeight: 30, headerHeight: 34,
+            columns: [
+              { field: 'order', header: 'Order', width: 110 },
+              { field: 'date', header: 'Date', type: 'date', width: 120, sort: 'desc' },
+              { field: 'product', header: 'Product', flex: 1, minWidth: 140 },
+              { field: 'category', header: 'Category', width: 130, filter: 'set' },
+              { field: 'qty', header: 'Qty', type: 'number', width: 90, aggregate: 'sum', editable: true },
+              { field: 'total', header: 'Total', type: 'number', width: 120, aggregate: 'sum', format: dollars },
+              { field: 'status', header: 'Status', width: 120, filter: 'set', render: (q) => '<span class="badge ' + escapeHtml(q.value) + '">' + escapeHtml(q.value) + '</span>' },
+            ],
+          });
+        },
+      });
+    }
+
+    // ---------- tabs & theme ----------
+    document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
+      document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x === b));
+      document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('on', p.id === 'panel-' + b.dataset.tab));
+      if (b.dataset.tab === 'tree') createTree();
+      if (b.dataset.tab === 'detail') createDetail();
+    }));
+    function applyTheme() {
+      document.documentElement.dataset.theme = theme;
+      [sales, tree, detail].forEach((g) => g && g.setTheme(theme));
+    }
+    document.getElementById('theme').addEventListener('click', () => { theme = theme === 'dark' ? 'light' : 'dark'; applyTheme(); });
+    applyTheme();
+  })();
+  </script>
+</body>
+</html>

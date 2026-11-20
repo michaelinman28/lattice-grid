@@ -567,6 +567,12 @@ The demo has four tabs:
   drawing only the visible columns (very wide grids), dragging rows between groups or grids, and
   right-to-left layout.
 
+## Figma design kit
+
+The [`figma/`](figma/) folder has a Figma plugin that generates a full design file. It includes the simple
+and complex grid layouts, light/dark and comfortable/compact options, menus and popups, plus components
+with variant options. See [figma/README.md](figma/README.md) for how to run it.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).

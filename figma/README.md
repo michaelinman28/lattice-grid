@@ -1,21 +1,25 @@
 # Lattice Grid: Figma design kit
 
-This folder holds a small Figma plugin. Run it once and it **builds the whole Lattice Grid design file
+This folder holds a small Figma plugin. Run it once and it **builds the whole Lattice Grid design kit
 for you**, with real Figma components and variant options. No account access or network is needed.
+
+**Works on the free Starter plan.** Starter files are limited to 3 pages, so the kit is built entirely on
+the page you're on, as six labelled **sections** (Cover, Tokens, Components, Simple grid, Complex grid,
+Overlays). It never creates pages. If the page already has work on it, the kit is placed to the right of it.
 
 ## How to run it (about 1 minute)
 
 1. Download this `figma` folder (or clone the repo).
 2. Open the **Figma desktop app**. Development plugins can't be imported in the browser version.
-3. Create a new, empty **Design** file.
+3. Open a **Design** file (a new one is easiest). FigJam, Slides and Make files won't run it.
 4. Menu → **Plugins → Development → Import plugin from manifest…** and pick `figma/manifest.json`.
 5. Menu → **Plugins → Development → Lattice Grid kit**. Building the six pages takes a few seconds.
 
-Re-run it in another empty file whenever you want a fresh copy.
+Re-run it whenever you want a fresh copy. Each run adds a new set of sections beside what's already there.
 
 ## What you get
 
-| Page | Contents |
+| Section | Contents |
 |---|---|
 | **Cover** | Title and a summary of the options |
 | **Tokens** | Light and dark colour tokens (backgrounds, text, borders, accent, range, flash) and type styles |

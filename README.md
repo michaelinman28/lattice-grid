@@ -571,7 +571,8 @@ The demo has four tabs:
 
 The [`figma/`](figma/) folder has a Figma plugin that generates a full design file. It includes the simple
 and complex grid layouts, light/dark and comfortable/compact options, menus and popups, plus components
-with variant options. See [figma/README.md](figma/README.md) for how to run it.
+with variant options. It works on Figma's free Starter plan, since everything goes on one page. See
+[figma/README.md](figma/README.md) for how to run it.
 
 ## License
 
